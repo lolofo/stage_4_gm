@@ -56,13 +56,13 @@ args = parser.parse_args()
 
 n = 1 # default epoch : 1
 
-if "nb_epoch" in args :
+if args.nb_epoch is not None :
     n = args.nb_epoch
 
     # --> batch size
 
 batch = 4 # default batch : 4
-if "batch_size" in args :
+if args.batch_size is not None :
     batch = args.batch_size
 
 #################
@@ -71,7 +71,7 @@ if "batch_size" in args :
 
 model_type = 1
 
-if "model_type" in args :   
+if args.model_type is not None :   
     model_type = args.model_type
 
 snli_model = None
@@ -94,20 +94,20 @@ print("we will train on the following device : " , device)
     # INIT of the train dataloard
     # here we will have 10 000 sentences for the training
 
-data_dir = "data"
+data_dir = "data/"
 
-if "data_dir" in args :
+if args.data_dir is not None :
     data_dir = args.data_dir
 
-train_dir = data_dir + "/snli_1.0_train.txt"
-test_dir = data_dir + "/snli_1.0_test.txt"
+train_dir = data_dir + "snli_1.0_train.txt"
+test_dir = data_dir + "snli_1.0_test.txt"
 
 print("loading data :")
-train_data_set = SnliDataset(dir = train_dir , nb_sentences= 1000 , msg = False)
+train_data_set = SnliDataset(dir = train_dir , nb_sentences= 100 , msg = False)
 train_data_loader = DataLoader(train_data_set , batch_size = batch , shuffle = True)
 
 
-test_data_set = SnliDataset(dir = test_dir , nb_sentences = 1000 ,  msg = False)
+test_data_set = SnliDataset(dir = test_dir , nb_sentences = 20 ,  msg = False)
 test_data_loader = DataLoader(test_data_set , batch_size = batch , shuffle = True)
 
     # make sure that the data load well
@@ -238,10 +238,10 @@ model_training(train_data_loader , test_data_loader , n)
 save_dir = "checkpoint/"
 model_name = "default.pt"
 
-if "save_dir" in args :
+if args.save_dir is not None :
     save_dir = args.save_dir
 
-if "model_name" in args :
+if args.model_name is not None :
     model_name = args.model_name
 
 
