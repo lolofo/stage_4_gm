@@ -30,8 +30,27 @@ parser.add_argument("-t" , "--model_type" , type = int)
 parser.add_argument("-d" , "--data_dir")
 parser.add_argument("-s" , "--save_dir")
 parser.add_argument("-mn" , "--model_name")
+parser.add_argument("-nb_train" , "--nb_train_sent" , type = int)
+parser.add_argument("-nb_test" , "--nb_test_sent" , type = int)
 
 args = parser.parse_args()
+
+#######################
+### epoch and batch ###
+#######################
+
+    # --> epoch
+
+n = 1 # default epoch : 1
+
+if args.nb_epoch is not None :
+    n = args.nb_epoch
+
+    # --> batch size
+
+batch = 4 # default batch : 4
+if args.batch_size is not None :
+    batch = args.batch_size
 
 
 ################
@@ -48,8 +67,17 @@ if args.data_dir is not None :
 train_dir = data_dir + "snli_1.0_train.txt"
 test_dir = data_dir + "snli_1.0_test.txt"
 
-train_data_set = SnliDataset(dir = train_dir , nb_sentences= 100 , msg = False)
-test_data_set = SnliDataset(dir = test_dir , nb_sentences = 20 , msg = False)
+nb_train = 100
+nb_test = 20
+
+if args.nb_train_sent is not None :
+    nb_train = args.nb_train_sent
+
+if args.nb_test_sent is not None :
+    nb_test = args.nb_test_sent
+
+train_data_set = SnliDataset(dir = train_dir , nb_sentences= nb_train , msg = False)
+test_data_set = SnliDataset(dir = test_dir , nb_sentences = nb_test , msg = False)
 
 train_loader = DataLoader(train_data_set, batch_size=4)
 val_loader = DataLoader(test_data_set, batch_size=4)
@@ -75,14 +103,14 @@ if model_type==1 :
 
 '''
 TODO : - make some research to understand the parameters of the trainer 
-       - how to do cpu gpu training
-       - how to get the information of the training
+       - how to do cpu//gpu training
+       - how to get the information of the training (done we do it with the tensorboard)
 '''
 
 devices = os.cpu_count()
 print("devices : ",devices)
 
-trainer = pl.Trainer(max_epochs = 4)
+trainer = pl.Trainer(max_epochs = n , devices = devices/2)
 
 #############################
 ### training of the model ###
@@ -91,3 +119,9 @@ trainer = pl.Trainer(max_epochs = 4)
 
 trainer.fit(model, train_loader, val_loader)
     
+
+
+"""
+the commande line :
+    python lightning_training.py -n 4 -b 4 -nb_train 5000 -nb_test 1000
+"""
