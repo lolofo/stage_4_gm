@@ -10,3 +10,19 @@ data
 
 lightning_logs
 */lightning_logs/*
+
+# Mac DS_Store
+.DS_Store
+*/**/.DS_Store
+
+# Py cache
+*/__pycache__/
+*/**/__pycache__/
+
+# Idea
+.idea
+*/**/.idea
+
+# Model checkpoint
+**/*.pt
+**/**/*.pt
