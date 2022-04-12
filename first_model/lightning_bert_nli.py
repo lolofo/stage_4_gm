@@ -12,6 +12,11 @@ from transformers import BertTokenizer
 
 criterion = nn.CrossEntropyLoss()
 
+
+"""
+TODO : create a function to access to the hidden attention state and make a good visualization of it.
+"""
+
 class BertNliLight(pl.LightningModule):
 
     def __init__(self , freeze_bert = False) :
