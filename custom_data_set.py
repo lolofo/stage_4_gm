@@ -140,6 +140,7 @@ if __name__ == "__main__" :
 
     '''
     manipulation of the dataloader object
+    series of test
     '''
     sentences, masks, train_labels = next(iter(train_dataloader))
 
@@ -148,3 +149,8 @@ if __name__ == "__main__" :
     print(f"Labels batch shape: {train_labels.size()}")
 
     print(torch.max(train_labels, 1)[1].size())
+
+    print(sentences[0,:])
+    print(masks[0,:])
+
+    print(tokenizer.convert_ids_to_tokens(sentences[0,:]))
