@@ -103,11 +103,11 @@ train_dir = data_dir + "snli_1.0_train.txt"
 test_dir = data_dir + "snli_1.0_test.txt"
 
 print("loading data :")
-train_data_set = SnliDataset(dir = train_dir , nb_sentences= 100 , msg = False)
+train_data_set = SnliDataset(dir = train_dir , nb_sentences= 5000 , msg = False)
 train_data_loader = DataLoader(train_data_set , batch_size = batch , shuffle = True)
 
 
-test_data_set = SnliDataset(dir = test_dir , nb_sentences = 20 ,  msg = False)
+test_data_set = SnliDataset(dir = test_dir , nb_sentences = 1000 ,  msg = False)
 test_data_loader = DataLoader(test_data_set , batch_size = batch , shuffle = True)
 
     # make sure that the data load well
