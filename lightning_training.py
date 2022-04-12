@@ -122,6 +122,7 @@ trainer.fit(model, train_loader, val_loader)
 
 
 """
-the commande line :
-    python lightning_training.py -n 4 -b 4 -nb_train 5000 -nb_test 1000
+the commande lines :
+    to run the script         :    python lightning_training.py -n 4 -b 4 -nb_train 5000 -nb_test 1000
+    to access the tensorboard :    tensorboard --logdir lightning_logs
 """
