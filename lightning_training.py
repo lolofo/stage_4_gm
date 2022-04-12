@@ -48,8 +48,8 @@ if args.data_dir is not None :
 train_dir = data_dir + "snli_1.0_train.txt"
 test_dir = data_dir + "snli_1.0_test.txt"
 
-train_data_set = SnliDataset(dir = train_dir , nb_sentences= 1000 , msg = False)
-test_data_set = SnliDataset(dir = test_dir , nb_sentences = 100 , msg = False)
+train_data_set = SnliDataset(dir = train_dir , nb_sentences= 100 , msg = False)
+test_data_set = SnliDataset(dir = test_dir , nb_sentences = 20 , msg = False)
 
 train_loader = DataLoader(train_data_set, batch_size=4)
 val_loader = DataLoader(test_data_set, batch_size=4)
@@ -82,12 +82,12 @@ TODO : - make some research to understand the parameters of the trainer
 devices = os.cpu_count()
 print("devices : ",devices)
 
-trainer = pl.Trainer()
+trainer = pl.Trainer(max_epochs = 4)
 
 #############################
 ### training of the model ###
 #############################
-"""
+
+
 trainer.fit(model, train_loader, val_loader)
-"""
     
