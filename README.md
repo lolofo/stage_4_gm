@@ -11,7 +11,8 @@
 First of all make sure to use the environnement provided thanks to the following command lines.
 
 ```
-
+conda env create -f python_env/nlp_env.yml
+conda activate nlp
 ```
 
 ### Pytorch lightning script
