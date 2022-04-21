@@ -79,11 +79,14 @@ if args.nb_train_sent is not None :
 if args.nb_test_sent is not None :
     nb_test = args.nb_test_sent
 
-train_data_set = SnliDataset(dir = train_dir , nb_sentences= nb_train , msg = False)
-test_data_set = SnliDataset(dir = test_dir , nb_sentences = nb_test , msg = False)
+devices = os.cpu_count()
+print("devices (num of workers) : ", devices)
 
-train_loader = DataLoader(train_data_set, batch_size=4)
-val_loader = DataLoader(test_data_set, batch_size=4)
+train_data_set = SnliDataset(dir=train_dir, nb_sentences=nb_train, msg=False)
+test_data_set = SnliDataset(dir=test_dir, nb_sentences=nb_test, msg=False)
+
+train_loader = DataLoader(train_data_set, num_workers= 2, batch_size=4)
+val_loader = DataLoader(test_data_set, num_workers = 2 ,batch_size=4)
 
 #############
 ### model ###
@@ -93,10 +96,10 @@ model = None
 
 model_type = 1
 
-if args.model_type is not None :   
+if args.model_type is not None:
     model_type = args.model_type
 
-if model_type==1 :
+if model_type == 1:
     model = BertNliLight()
 
 
@@ -105,13 +108,14 @@ if model_type==1 :
 ######################
 
 '''
-TODO : - make some research to understand the parameters of the trainer 
+TODO
+- make some research to understand the parameters of the trainer 
        - how to do cpu//gpu training
        - how to get the information of the training (done we do it with the tensorboard)
 '''
 
-    # set the direction to visualize the logs of the training
-    # the visualization will be done with tensorboard.
+# set the direction to visualize the logs of the training
+# the visualization will be done with tensorboard.
 
 log_dir = "log_dir"
 
@@ -120,8 +124,7 @@ if args.logdir is not None :
 
 
 logger = TensorBoardLogger(name = log_dir , save_dir=log_dir+"/")
-devices = os.cpu_count()
-print("devices : ",devices)
+
 
 trainer = pl.Trainer(max_epochs = n , logger = logger)
 
