@@ -1,4 +1,10 @@
-# Plausibility of the attention mechanism
+- [Introduction](#introduction)
+- [Natural Language Inference (NLI) task](#natural-language-inference-nli-task)
+- [The data (SNLI dataset)](#the-data-snli-dataset)
+- [Command lines (How to use this git)](#command-lines-how-to-use-this-git)
+  - [Pytorch lightning script](#pytorch-lightning-script)
+
+
 
 ## Introduction
 
@@ -30,4 +36,9 @@ To visualize our training performance we used the tool **tensorboard**. If *log_
 
 ```
 tensorboard --logdir log_dir
-```
+```- [Plausibility of the attention mechanism](#plausibility-of-the-attention-mechanism)
+  - [Introduction](#introduction)
+  - [Natural Language Inference (NLI) task](#natural-language-inference-nli-task)
+  - [The data (SNLI dataset)](#the-data-snli-dataset)
+  - [Command lines (How to use this git)](#command-lines-how-to-use-this-git)
+    - [Pytorch lightning script](#pytorch-lightning-script)
