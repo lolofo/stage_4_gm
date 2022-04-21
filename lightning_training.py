@@ -82,8 +82,8 @@ print("devices (num of workers) : ", devices)
 train_data_set = SnliDataset(dir=train_dir, nb_sentences=nb_train, msg=False)
 test_data_set = SnliDataset(dir=test_dir, nb_sentences=nb_test, msg=False)
 
-train_loader = DataLoader(train_data_set, batch_size=4)
-val_loader = DataLoader(test_data_set, batch_size=4)
+train_loader = DataLoader(train_data_set, batch_size=batch)
+val_loader = DataLoader(test_data_set, batch_size=batch)
 
 #############
 ### model ###
@@ -120,7 +120,10 @@ if args.logdir is not None:
 
 logger = TensorBoardLogger(name=log_dir, save_dir=log_dir + "/")
 
-trainer = pl.Trainer(max_epochs=n, logger=logger)
+train_steps = nb_train/batch
+val_steps = nb_train/batch
+
+trainer = pl.Trainer(max_epochs=n, logger=logger, log_every_n_steps=train_steps/2 + 1)
 
 #############################
 ### training of the model ###

@@ -77,12 +77,12 @@ class BertNliLight(pl.LightningModule):
         class_pred = torch.max(logits, 1)[1]
         class_true = torch.max(labels, 1)[1]
 
-        self.val_acc(class_pred, class_true)
+        self.train_acc(class_pred, class_true)
 
-        self.log("train_loss", loss, on_step=False, on_epoch=True)
-        self.log("train_acc", self.val_acc, on_step=False, on_epoch=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, logger=True)
+        self.log("train_acc", self.train_acc, on_step=True, on_epoch=True, logger=True)
 
-        return {'train_loss': loss, 'train_preds': class_pred, 'train_target': class_true}
+        return loss
 
     ########################
     ### validation steps ###
@@ -92,16 +92,9 @@ class BertNliLight(pl.LightningModule):
         input_ids, attention_mask, labels = val_batch
         logits = self.forward(input_ids, attention_mask)
 
-        # calculation of the loss
-        loss = criterion(logits, torch.max(labels, 1)[1])
-
         # some tools for the end_validation
         class_pred = torch.max(logits, 1)[1]
         class_true = torch.max(labels, 1)[1]
 
         self.val_acc(class_pred, class_true)
-
-        self.log("val_loss", loss, on_step=False, on_epoch=True)
-        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True)
-
-        return {'val_loss': loss, 'val_preds': class_pred, 'val_target': class_true}
+        self.log("val_acc", self.val_acc, on_step=True, on_epoch=True, logger=True)
