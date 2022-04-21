@@ -26,6 +26,8 @@ class BertNliLight(pl.LightningModule):
         # the bert layer will return the layer will return the attention weights
         self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True)
 
+        self.bert_output = None
+
         # classifier head
         self.classifier = nn.Sequential(
             # fully connected layer
@@ -33,14 +35,15 @@ class BertNliLight(pl.LightningModule):
 
         )
 
-        self.accuracy = Accuracy(num_class=3)
+        self.val_acc = Accuracy(num_class=3)
+        self.train_acc = Accuracy(num_class=3)
 
     def forward(self, input_ids, attention_mask, *args, **kwargs):
         '''
         input_ids :      torch.tensor of shape (batch_size , max_pad)
         attention_mask : torch.tensor of shape (batch_size , max_pad)
 
-        The output of the model will be
+        The output of the model will be the logits of the model (weights before softmax)
         '''
 
         self.bert_output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
@@ -50,7 +53,7 @@ class BertNliLight(pl.LightningModule):
         # the logits are the weights before the softmax.
         logits = self.classifier(cls_token)
 
-        return (logits)
+        return logits
 
     def configure_optimizers(self):
         '''
@@ -74,12 +77,12 @@ class BertNliLight(pl.LightningModule):
         class_pred = torch.max(logits, 1)[1]
         class_true = torch.max(labels, 1)[1]
 
-        return {'loss': loss, 'preds': class_pred, 'target': class_true}
+        self.val_acc(class_pred, class_true)
 
-    def training_step_end(self, outputs):
-        self.accuracy(outputs['preds'], outputs['target'], on_step=False, on_epoch=True)
-        self.log('loss', outputs['loss'], on_step=False, on_epoch=True)
-        self.log('accuracy', self.accuracy, on_step=False, on_epoch=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
+        self.log("train_acc", self.val_acc, on_step=False, on_epoch=True)
+
+        return {'train_loss': loss, 'train_preds': class_pred, 'train_target': class_true}
 
     ########################
     ### validation steps ###
@@ -96,9 +99,9 @@ class BertNliLight(pl.LightningModule):
         class_pred = torch.max(logits, 1)[1]
         class_true = torch.max(labels, 1)[1]
 
-        return {'loss': loss, 'preds': class_pred, 'target': class_true}
+        self.val_acc(class_pred, class_true)
 
-    def validation_step_end(self, outputs):
-        self.accuracy(outputs['preds'], outputs['target'], on_step=False, on_epoch=True)
-        self.log('loss', outputs['loss'], on_step=False, on_epoch=True)
-        self.log('accuracy', self.accuracy, on_step=False, on_epoch=True)
+        self.log("val_loss", loss, on_step=False, on_epoch=True)
+        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True)
+
+        return {'val_loss': loss, 'val_preds': class_pred, 'val_target': class_true}
