@@ -42,7 +42,7 @@ class SnliDataset (Dataset) :
     custom dataset
     '''
 
-    def __init__(self , dir = train_dir , nb_sentences = 100 , msg = True) :
+    def __init__(self, dir=train_dir , nb_sentences = 100 , msg = True) :
         '''
         initiation of the dataset :
             - the default parameter here are for the training
