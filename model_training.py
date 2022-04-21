@@ -235,7 +235,7 @@ model_training(train_data_loader , test_data_loader , n)
 ######################
 
 
-save_dir = "checkpoint/"
+save_dir = "checkpoint"
 model_name = "default.pt"
 
 if args.save_dir is not None :

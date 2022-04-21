@@ -9,6 +9,8 @@ import pytorch_lightning as pl
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from pytorch_lightning.loggers import TensorBoardLogger
+
 from transformers import BertModel
 from transformers import BertTokenizer
 
@@ -32,6 +34,7 @@ parser.add_argument("-s" , "--save_dir")
 parser.add_argument("-mn" , "--model_name")
 parser.add_argument("-nb_train" , "--nb_train_sent" , type = int)
 parser.add_argument("-nb_test" , "--nb_test_sent" , type = int)
+parser.add_argument("-logs" , "--logdir")
 
 args = parser.parse_args()
 
@@ -107,22 +110,42 @@ TODO : - make some research to understand the parameters of the trainer
        - how to get the information of the training (done we do it with the tensorboard)
 '''
 
+    # set the direction to visualize the logs of the training
+    # the visualization will be done with tensorboard.
+
+log_dir = "log_dir"
+
+if args.logdir is not None :
+    log_dir = args.logdir
+
+
+logger = TensorBoardLogger(name = log_dir , save_dir=log_dir+"/")
 devices = os.cpu_count()
 print("devices : ",devices)
 
-trainer = pl.Trainer(max_epochs = n , devices = devices/2)
+trainer = pl.Trainer(max_epochs = n , logger = logger)
 
 #############################
 ### training of the model ###
 #############################
 
-
 trainer.fit(model, train_loader, val_loader)
     
+######################
+### save the model ###
+######################
 
 
-"""
-the commande lines :
-    to run the script         :    python lightning_training.py -n 4 -b 4 -nb_train 5000 -nb_test 1000
-    to access the tensorboard :    tensorboard --logdir lightning_logs
-"""
+save_dir = "checkpoint"
+model_name = "default_lightning.pt"
+
+if args.save_dir is not None :
+    save_dir = args.save_dir
+
+if args.model_name is not None :
+    model_name = args.model_name
+
+
+PATH = save_dir +"/"+model_name
+
+torch.save(model.state_dict() , PATH)

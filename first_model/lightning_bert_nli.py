@@ -10,8 +10,9 @@ from torch.optim import AdamW
 from transformers import BertModel
 from transformers import BertTokenizer
 
-criterion = nn.CrossEntropyLoss()
+from torchmetrics.classification import Accuracy
 
+criterion = nn.CrossEntropyLoss()
 
 """
 TODO : create a function to access to the hidden attention state and make a good visualization of it.
@@ -33,6 +34,8 @@ class BertNliLight(pl.LightningModule):
             nn.Linear(in_features = 768 , out_features = 3),
 
         )
+
+        self.accuracy = Accuracy(num_class = 3)
 
 
 
@@ -74,8 +77,22 @@ class BertNliLight(pl.LightningModule):
         
     def validation_step(self, val_batch, batch_idx):
 
+        
         input_ids, attention_mask , labels = val_batch
         logits = self.forward(input_ids , attention_mask)
+
+        # calculation of the loss
         loss = criterion(logits , torch.max(labels, 1)[1])
         self.log('val_loss', loss)
-        return loss
+
+        # some tools for the end_validation
+        class_pred = torch.max(logits , 1)[1]
+        class_true = torch.max(labels, 1)[1]
+
+        return {'loss' : loss , 'preds' : class_pred , 'target' : class_true}
+
+
+    def validation_step_end(self, outputs):
+        
+        self.accuracy(outputs['preds'], outputs['target'])
+        self.log('metric', self.accuracy)
