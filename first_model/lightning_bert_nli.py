@@ -13,7 +13,8 @@ from torchmetrics.classification import Accuracy
 criterion = nn.CrossEntropyLoss()
 
 """
-TODO : create a function to access to the hidden attention state and make a good visualization of it.
+TODO: 
+    - create a function to access to the hidden attention state and make a good visualization of it.
 """
 
 
@@ -79,8 +80,8 @@ class BertNliLight(pl.LightningModule):
 
         self.train_acc(class_pred, class_true)
 
-        self.log("train_loss", loss, on_step=True, on_epoch=True, logger=True)
-        self.log("train_acc", self.train_acc, on_step=True, on_epoch=True, logger=True)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True)
+        self.log("train_acc", self.train_acc, on_step=False, on_epoch=True, logger=True)
 
         return loss
 
@@ -97,4 +98,4 @@ class BertNliLight(pl.LightningModule):
         class_true = torch.max(labels, 1)[1]
 
         self.val_acc(class_pred, class_true)
-        self.log("val_acc", self.val_acc, on_step=True, on_epoch=True, logger=True)
+        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True, logger=True)

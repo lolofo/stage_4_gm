@@ -47,7 +47,7 @@ n = 1  # default epoch : 1
 if args.nb_epoch is not None:
     n = args.nb_epoch
 
-    # --> batch size
+# --> batch size
 
 batch = 4  # default batch : 4
 if args.batch_size is not None:
@@ -104,10 +104,10 @@ if model_type == 1:
 ######################
 
 '''
-TODO
-- make some research to understand the parameters of the trainer 
-       - how to do cpu//gpu training
-       - how to get the information of the training (done we do it with the tensorboard)
+TODO:
+    - make some research to understand the parameters of the trainer 
+    - how to do cpu//gpu training
+    - how to get the information of the training (done we do it with the tensorboard)
 '''
 
 # set the direction to visualize the logs of the training
