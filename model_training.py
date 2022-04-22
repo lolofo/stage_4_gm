@@ -94,7 +94,7 @@ print("we will train on the following device : " , device)
     # INIT of the train dataloard
     # here we will have 10 000 sentences for the training
 
-data_dir = "data/"
+data_dir = "snli_data/snli_1.0/"
 
 if args.data_dir is not None :
     data_dir = args.data_dir
