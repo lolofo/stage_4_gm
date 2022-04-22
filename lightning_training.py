@@ -59,7 +59,7 @@ if args.batch_size is not None:
 
 print("loading the data ...")
 
-data_dir = "data/"
+data_dir = "snli_data/snli_1.0/"
 
 if args.data_dir is not None:
     data_dir = args.data_dir

@@ -21,9 +21,9 @@ creation of our own class dataset to store our data
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 # different directions
-train_dir = "data/snli_1.0_train.txt"
-dev_dir = "data/snli_1.0_dev.txt"
-test_dir = "data/snli_1.0_test.txt"
+train_dir = "snli_data/snli_1.0/snli_1.0_train.txt"
+dev_dir = "snli_data/snli_1.0/snli_1.0_dev.txt"
+test_dir = "snli_data/snli_1.0/snli_1.0_test.txt"
 
 # max_pad --> padding for the tokenizer
 max_pad = 150
@@ -93,7 +93,7 @@ class SnliDataset(Dataset):
         '''
         return the length of the dataset
         '''
-        return (len(self.labels))
+        return len(self.labels)
 
     def __getitem__(self, idx):
 
