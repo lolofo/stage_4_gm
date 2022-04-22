@@ -5,11 +5,13 @@
 __pycache__
 */__pycache__/*
 
-data
-*/data/*
-
 lightning_logs
 */lightning_logs/*
+
+# Data
+snli_data
+*/snli_data/*
+
 
 # Mac DS_Store
 .DS_Store
