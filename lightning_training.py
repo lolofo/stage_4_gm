@@ -103,12 +103,12 @@ if model_type == 1:
 ### trainer config ###
 ######################
 
-'''
+""" 
 TODO:
     - make some research to understand the parameters of the trainer 
     - how to do cpu//gpu training
     - how to get the information of the training (done we do it with the tensorboard)
-'''
+"""
 
 # set the direction to visualize the logs of the training
 # the visualization will be done with tensorboard.
