@@ -73,3 +73,27 @@ class BertNli(nn.Module):
         logits = self.classifier(cls_token)
 
         return logits
+
+    ##############################
+    ### function for the study ###
+    ##############################
+
+    def get_attention(self, input_ids, attention_mask, *args, **kwargs):
+
+        outputs = self.bert(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            *args, **kwargs)
+
+        attention_tensor = outputs.attentions
+
+        res = torch.stack(attention_tensor, dim=1)
+
+        print("start some tests : ")
+
+        print(attention_tensor[4][0, 9, 4, 5])
+        print(res[0, 4, 9, 4, 5])
+
+        print(attention_tensor[8][0, 1, 7, 9])
+        print(res[0, 8, 1, 7, 9])
+
+        return res, input_ids, attention_mask

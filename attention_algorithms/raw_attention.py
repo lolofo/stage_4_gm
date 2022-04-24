@@ -12,11 +12,11 @@ import networkx as nx
 # the tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-
 """
 idea : 
     - create an exception for the pad removing.
 """
+
 
 def attention_tools(input_ids,
                     attention_mask,
@@ -35,17 +35,13 @@ def attention_tools(input_ids,
             - the tokens
             - the attention tensor without the padding tokens
     """
-    tokens = tokenizer.convert_ids_to_tokens(input_ids)
-    mask = attention_mask.detach().numpy() == 1
+    mask = attention_mask[0, :].detach().numpy() == 1
+    tokens = tokenizer.convert_ids_to_tokens(input_ids[0, mask])
 
-    res = attention_tensor[:, :, :, mask, mask]
+    res = attention_tensor[:, :, :, mask, :]
+    res = res[:, :, :, :, mask]
 
     num_non_pad_tok = sum(mask)
-
-    if mask == res.shape[4] :
-        print("remove pad ok")
-    else :
-        print("error on remove pad")
 
     return res, tokens
 
@@ -89,7 +85,7 @@ def create_adj_matrix(attention_tensor: torch.tensor,
     n_layers, length, _ = mat.shape
     adj_mat = np.zeros(((n_layers + 1) * length, (n_layers + 1) * length))
 
-    # the labels -> the name of each node to know were it is.
+    # the labels -> the name of each node to know where it is.
     labels = {}
 
     for i in range(n_layers):
