@@ -5,7 +5,7 @@
 - [Natural Language Inference (NLI) task](#natural-language-inference-nli-task)
 - [The data (SNLI dataset)](#the-data-snli-dataset)
 - [Command lines (How to use this git)](#command-lines-how-to-use-this-git)
-  - [Pytorch lightning script](#pytorch-lightning-script)
+  - [Pytorch lightning script](#pytorch-lightning-training-script)
 
 
 
@@ -24,7 +24,14 @@ conda env create -f python_env/nlp_env.yml
 conda activate nlp
 ```
 
-### Pytorch lightning script
+### Download the data
+
+To download the snli data the command line is the following :
+```
+python data_download.py
+```
+
+### Pytorch lightning training script
 
 To run the *lightning_training.py* for some tests we used the following command line :
 

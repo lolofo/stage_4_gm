@@ -1,5 +1,5 @@
 '''
-TODO: 
+TODO:
     - add some more test for the results.
     - add some test to be sure of the shape and what is inside the dataset.
 '''
@@ -61,7 +61,7 @@ class SnliDataset(Dataset):
             '''
             we have a problem with some sentences
             raise an exception --> catch it. It is because of NaN values.
-                                   we don't pay attention to these values.
+                                                we don't pay attention to these values.
             '''
             try:
 
