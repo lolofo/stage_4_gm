@@ -140,4 +140,8 @@ if __name__ == "__main__":
     print(sentences[0, :])
     print(masks[0, :])
 
+    mask = masks[0, :].detach().numpy() == 1
+    print(sentences[0, mask])
+
     print(tokenizer.convert_ids_to_tokens(sentences[0, :]))
+    print(tokenizer.convert_ids_to_tokens(sentences[0, mask]))

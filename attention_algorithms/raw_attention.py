@@ -13,6 +13,11 @@ import networkx as nx
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 
+"""
+idea : 
+    - create an exception for the pad removing.
+"""
+
 def attention_tools(input_ids,
                     attention_mask,
                     attention_tensor,
@@ -21,15 +26,28 @@ def attention_tools(input_ids,
     input : attention_tensor -> torch tensor of the shape (batch_size = 1 , num_layers , num_heads , length , length)
             attention_mask   -> where are the padding tokens
             input_ids        -> ids of the different tokens (replace them with the original tokens)
+                                torch tensor of the shape (length) (just the sentences)
 
     - this function will use the attention mask to delete the padding tokens
     - we will convert the input_ids into the different tokens
 
     then it will return :
             - the tokens
-            - the torch tensor without the padding tokens
+            - the attention tensor without the padding tokens
     """
-    pass
+    tokens = tokenizer.convert_ids_to_tokens(input_ids)
+    mask = attention_mask.detach().numpy() == 1
+
+    res = attention_tensor[:, :, :, mask, mask]
+
+    num_non_pad_tok = sum(mask)
+
+    if mask == res.shape[4] :
+        print("remove pad ok")
+    else :
+        print("error on remove pad")
+
+    return res, tokens
 
 
 def heads_transf(attention_tensor: torch.tensor,
