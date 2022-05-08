@@ -3,35 +3,18 @@ import torch.nn as nn
 from transformers import BertModel
 from transformers import BertTokenizer
 
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
 '''
 for the tokenizer :
     101 --> [CLS] (begining of a sentence)
     102 --> [SEP] (end of a sentence)
 '''
 
-'''
-modification to make :
-    - the model must not take as input the sentences
-    - the model must take as input, numerical data --> transformation of the data
-
-A torch model always take as input,  numerical data.
-
-For the data preparation we need to pad all the sentences
-'''
-
 
 class BertNli(nn.Module):
-    '''
-    Bert the natural language inference task :
-        s1 [SEP] s2 ==> three possible classes :
-
-            - entailment (1)
-            - contradiction (2)
-            - neutral (3)
-
-    we need to prepare the data set thanks to these parameters
-    '''
-
+    """ Bert modèle for SNLI task
+    """
     def __init__(self, freeze_bert=False):
 
         super(BertNli, self).__init__()
@@ -57,11 +40,6 @@ class BertNli(nn.Module):
 
     def forward(self, input_ids, attention_mask, *args, **kwargs):
 
-        '''
-        input_ids : torch.tensor of shape (batch_size , max_pad)
-        attention_mask : torch.tensor of shape (batch_size , max_pad)
-        '''
-
         self.bert_output = self.bert(input_ids=input_ids,
                                      attention_mask=attention_mask,
                                      *args, **kwargs
@@ -78,7 +56,11 @@ class BertNli(nn.Module):
     ### function for the study ###
     ##############################
 
-    def get_attention(self, input_ids, attention_mask, *args, **kwargs):
+    def get_attention(self,
+                      input_ids,
+                      attention_mask,
+                      test_mod: bool = False,
+                      *args, **kwargs):
 
         outputs = self.bert(input_ids=input_ids,
                             attention_mask=attention_mask,
@@ -88,12 +70,28 @@ class BertNli(nn.Module):
 
         res = torch.stack(attention_tensor, dim=1)
 
-        print("start some tests : ")
+        # remove the padding tokens
 
-        print(attention_tensor[4][0, 9, 4, 5])
-        print(res[0, 4, 9, 4, 5])
+        mask = attention_mask[0, :].detach().numpy() == 1
+        res = res[:, :, :, mask, :]
+        res = res[:, :, :, :, mask]
 
-        print(attention_tensor[8][0, 1, 7, 9])
-        print(res[0, 8, 1, 7, 9])
+        tokens = tokenizer.convert_ids_to_tokens(input_ids[0, mask])
 
-        return res, input_ids, attention_mask
+        if test_mod:
+            print("test passed : ", end='')
+            passed = True
+            for n in range(len(attention_tensor)):
+                for n_head in range(12):
+                    for x in range(input_ids.shape[1]):
+                        for y in range(input_ids.shape[1]):
+                            if mask[x] == 1 and mask[y] == 1:
+                                if attention_tensor[n][0, n_head, x, y] != res[0, n, n_head, x, y]:
+                                    passed = False
+
+            if passed:
+                print(u'\u2713')
+            else:
+                print("x")
+
+        return res, tokens, input_ids, attention_mask
