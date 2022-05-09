@@ -4,6 +4,8 @@ import torch
 from transformers import BertTokenizer
 import networkx as nx
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_theme()
 
 from typing import Union
 

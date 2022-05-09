@@ -10,17 +10,21 @@ from torch.utils.data import DataLoader
 from attention_algorithms.raw_attention import create_adj_matrix
 from attention_algorithms.raw_attention import create_attention_graph
 from attention_algorithms.raw_attention import draw_attention_graph
+
+from attention_algorithms.heads_role import attention_confidence
+from attention_algorithms.heads_role import plot_confidence
+
 import matplotlib
 import matplotlib.pyplot as plt
 
 # first load the model
 model = BertNli()
-# model.load_state_dict(torch.load("checkpoint/default.pt"))
+model.load_state_dict(torch.load("checkpoint/default.pt"))
 model.eval()
-
+"""
 # load some data just load one sentence
 data_set = SnliDataset(nb_sentences=1, msg=False)
-data_loader = DataLoader(data_set, batch_size=1, shuffle=True)
+data_loader = DataLoader(data_set, batch_size=1, shuffle=False)
 
 sentences, masks, train_labels = next(iter(data_loader))
 
@@ -49,4 +53,14 @@ plt.savefig("plots/attention_graph_head_3.png")
 
 g = create_attention_graph(attention_tensors, heads_concat=False, num_head=10)
 g, fig = draw_attention_graph(g, labels, n_layers=12, tokens=tokens, graph_width=25)
-plt.savefig("plots/attention_graph_head_11.png")
+plt.savefig("plots/attention_graph_head_11.png")"""
+
+data_set = SnliDataset(nb_sentences=32, msg=False)
+data_loader = DataLoader(data_set, batch_size=32, shuffle=False)
+
+sentences, masks, train_labels = next(iter(data_loader))
+
+map = attention_confidence(model, sentences, masks)
+print(map)
+fig = plot_confidence(map)
+plt.savefig("plots/confidence_map.png")

@@ -5,16 +5,24 @@ from transformers import BertTokenizer
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-'''
-for the tokenizer :
-    101 --> [CLS] (begining of a sentence)
-    102 --> [SEP] (end of a sentence)
-'''
+"""
+TODO: - 
+    
+"""
 
 
 class BertNli(nn.Module):
     """ Bert modèle for SNLI task
+
+    Attributes :
+        bert : a bert-base transformers from the library huggin face
+        classifier : a classification head to be able to do the SNLI task
+
+    Methods :
+        forward : forward pass of the model
+        get_attention : return the attention values in a tensor with an interesting shape
     """
+
     def __init__(self, freeze_bert=False):
 
         super(BertNli, self).__init__()
