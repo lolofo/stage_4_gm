@@ -53,14 +53,14 @@ args = parser.parse_args()
 
 # --> epoch
 
-n = 2  # default epoch : 1
+n = 2  # default epoch : 2
 
 if args.nb_epoch is not None:
     n = args.nb_epoch
 
     # --> batch size
 
-batch = 4  # default batch : 32
+batch = 4  # default batch : 4
 if args.batch_size is not None:
     batch = args.batch_size
 
@@ -131,10 +131,9 @@ print(f"\t Labels batch shape: {train_labels.size()}")
 ###################################
 ### loss function and optimizer ###
 ###################################
-
 criterion = nn.CrossEntropyLoss()
 
-optimizer = AdamW(snli_model.parameters(), lr=5e-5)
+optimizer = AdamW(snli_model.parameters(), lr=5e-5)  # better perf with adam
 
 lr_scheduler = get_scheduler(
     name="linear",
@@ -147,10 +146,7 @@ lr_scheduler = get_scheduler(
 #################################################
 ### training loop (using previous parameters) ###
 #################################################
-
-# TODO
-
-def model_training(trainloader, test_data_loader, n=4):
+def model_training():
     '''
     training loop : generical training loop
     '''
@@ -158,38 +154,40 @@ def model_training(trainloader, test_data_loader, n=4):
     print()
     print("start training")
 
-    snli_model.to(device)
+    snli_model.to(device)  # gpu training
 
     for epoch in range(n):  # loop over the dataset multiple times
 
-        print("epoch {}".format(epoch))
-        snli_model.train()
+        print("epoch {}".format(epoch + 1))
+        #
         # training part
-        with tqdm.tqdm(train_data_loader, unit="batch") as tepoch:
+        #
+        snli_model.train()
+        avg_loss = 0
+        ep = 0
 
+        with tqdm.tqdm(train_data_loader, unit="batch") as tepoch:
             for data in tepoch:
                 input_ids, attention_mask, labels = data[0].to(device), data[1].to(device), data[2].to(device)
-
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
                 logits = snli_model(input_ids=input_ids, attention_mask=attention_mask)
-
-                # we give the logits to the criterion function
-                # the criterion function will
                 loss = criterion(logits, torch.max(labels, 1)[1])
-
                 loss.backward()
                 optimizer.step()
 
                 # update of the learning rate
                 lr_scheduler.step()
 
+                # avg training loss
+                avg_loss += loss.item()
+                ep += 1
+
                 tepoch.set_postfix(loss=loss.item())
 
         # test part
-
         snli_model.eval()
 
         correct = 0
@@ -198,25 +196,16 @@ def model_training(trainloader, test_data_loader, n=4):
         # model in eval mod (no dropout)
         snli_model.eval()
 
+        # torch.no_gard >> help to save memory for the gpu.
         with torch.no_grad():
+
             with tqdm.tqdm(test_data_loader, unit="batch") as tepoch:
                 for data in tepoch:
-                    '''
-                    go through all the test data
-                    '''
-
                     input_ids, attention_mask, labels = data[0].to(device), data[1].to(device), data[2].to(device)
-
                     logits = snli_model(input_ids=input_ids, attention_mask=attention_mask)
-
-                    # the class with the highest energy is what we choose as prediction
-
                     labels = torch.max(labels, 1)[1]
-
                     predicted = torch.max(logits, 1)[1]
-
                     total += labels.size(0)
-
                     correct += (predicted == labels).sum().item()
 
         print(f'test accuracy {100 * correct // total} %')
@@ -230,7 +219,7 @@ def model_training(trainloader, test_data_loader, n=4):
 ################
 
 print("nb epoch", n)
-model_training(train_data_loader, test_data_loader, n)
+model_training()
 
 ######################
 ### save the model ###

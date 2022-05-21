@@ -32,10 +32,14 @@ class BertNli(nn.Module):
         self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True)
 
         # classifier head
+        # dropout >> model.eval() for the test part.
         self.classifier = nn.Sequential(
+            # dropout for the cls token
+            nn.Dropout(0.1),
             # fully connected layer
             nn.Linear(in_features=768, out_features=3),
-
+            # dropout before the final decision
+            nn.Dropout(0.1)
         )
 
         # do not train bert
