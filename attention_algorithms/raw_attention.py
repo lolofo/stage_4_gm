@@ -5,6 +5,7 @@ from transformers import BertTokenizer
 import networkx as nx
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 sns.set_theme()
 
 from typing import Union
@@ -66,12 +67,12 @@ def create_adj_matrix(attention_tensor: torch.tensor,
         if i == 0:
             for u in range(length):
                 # input labels
-                buff = "Layer_" + str(i + 1) + "_" + str(u)
+                buff = "Layer_" + str(i) + "_" + str(u)
                 labels[buff] = u
         else:
             for u in range(length):
                 k_u = length * i + u
-                buff = "Layer_" + str(i + 1) + "_" + str(u)
+                buff = "Layer_" + str(i) + "_" + str(u)
                 labels[buff] = k_u
                 for v in range(length):
                     k_v = length * (i - 1) + v
@@ -161,7 +162,7 @@ def draw_attention_graph(g: nx.classes.digraph.DiGraph,
 
     fig = plt.figure(figsize=(graph_width, graph_width))
 
-    nx.draw_networkx_nodes(g, pos, node_color='green', labels=index_to_labels, node_size=50)
+    nx.draw_networkx_nodes(g, pos, node_color='green', label=index_to_labels, node_size=50)
     nx.draw_networkx_labels(g, pos=label_pos, labels=index_to_labels, font_size=10)
 
     all_weights = []
@@ -170,7 +171,6 @@ def draw_attention_graph(g: nx.classes.digraph.DiGraph,
 
     unique_weights = list(set(all_weights))
 
-    # 4 c. Plot the edges - one by one!
     for weight in unique_weights:
         weighted_edges = [(node1, node2) for (node1, node2, edge_attr) in g.edges(data=True) if \
                           edge_attr['weight'] == weight]

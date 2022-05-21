@@ -18,10 +18,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 # first load the model
+# we load the pre-trained model for the tests.
 model = BertNli()
-model.load_state_dict(torch.load("checkpoint/default.pt"))
 model.eval()
-"""
+
 # load some data just load one sentence
 data_set = SnliDataset(nb_sentences=1, msg=False)
 data_loader = DataLoader(data_set, batch_size=1, shuffle=False)
@@ -41,19 +41,19 @@ adj_matrix, labels = create_adj_matrix(attention_tensors,
 
 g = create_attention_graph(attention_tensors, heads_concat=False, num_head=0)
 g, fig = draw_attention_graph(g, labels, n_layers=12, tokens=tokens, graph_width=25)
-plt.savefig("plots/attention_graph_head_1.png")
+plt.savefig("./plots/attention_graph_head_1.png")
 
 g = create_attention_graph(attention_tensors, heads_concat=False, num_head=1)
 g, fig = draw_attention_graph(g, labels, n_layers=12, tokens=tokens, graph_width=25)
-plt.savefig("plots/attention_graph_head_2.png")
+plt.savefig("./plots/attention_graph_head_2.png")
 
 g = create_attention_graph(attention_tensors, heads_concat=False, num_head=2)
 g, fig = draw_attention_graph(g, labels, n_layers=12, tokens=tokens, graph_width=25)
-plt.savefig("plots/attention_graph_head_3.png")
+plt.savefig("./plots/attention_graph_head_3.png")
 
 g = create_attention_graph(attention_tensors, heads_concat=False, num_head=10)
 g, fig = draw_attention_graph(g, labels, n_layers=12, tokens=tokens, graph_width=25)
-plt.savefig("plots/attention_graph_head_11.png")"""
+plt.savefig("./plots/attention_graph_head_11.png")
 
 data_set = SnliDataset(nb_sentences=32, msg=False)
 data_loader = DataLoader(data_set, batch_size=32, shuffle=False)

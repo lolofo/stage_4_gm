@@ -69,6 +69,12 @@ class BertNli(nn.Module):
                       attention_mask,
                       test_mod: bool = False,
                       *args, **kwargs):
+        """
+        :param input_ids :
+        :param attention_mask:
+        :param test_mod:
+
+        """
 
         outputs = self.bert(input_ids=input_ids,
                             attention_mask=attention_mask,
