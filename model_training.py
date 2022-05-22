@@ -235,7 +235,7 @@ model_training()
 ######################
 
 
-save_dir = "checkpoint"
+save_dir = "./checkpoint"
 model_name = "default.pt"
 
 if args.save_dir is not None:
@@ -246,4 +246,4 @@ if args.model_name is not None:
 
 PATH = save_dir + "/" + model_name
 
-torch.save(snli_model.state_dict(), PATH)
+torch.save(snli_model, PATH)
