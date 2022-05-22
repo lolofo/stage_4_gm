@@ -8,6 +8,10 @@ __pycache__
 lightning_logs
 */lightning_logs/*
 
+# tensorboard training
+runs
+*/runs/*
+
 # Data
 snli_data
 */snli_data/*

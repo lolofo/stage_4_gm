@@ -5,12 +5,6 @@ from transformers import BertTokenizer
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-"""
-TODO: - 
-    
-"""
-
-
 class BertNli(nn.Module):
     """ Bert modèle for SNLI task
 

@@ -40,3 +40,7 @@ except FileNotFoundError:
 for f in glob.glob("snli_data/snli_1.0/snli_1.0*.jsonl"):
     os.remove(f)
 
+
+## prepare the environnement ##
+
+

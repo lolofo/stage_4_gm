@@ -2,35 +2,25 @@
 ### General training script ###
 ###############################
 
-import pandas as pd
-import numpy as np
-
-import sys
-
-# everything will be printed on this file
-# we will keep all the informations of the different training into a file
 print("START OF THE TRAINING")
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from transformers import BertModel
-from transformers import BertTokenizer
-
-# scheduler --> modify the lr through the epochs
 from transformers import get_scheduler
 
 from torch.optim import AdamW
 
-from transformers import BertTokenizer
-from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
+import torch
+import torch.nn as nn
 from first_model.bert_nli import BertNli
 from custom_data_set import SnliDataset
-import tqdm
 
+import tqdm
 import argparse
+
+from torch.utils.tensorboard import SummaryWriter
+
+writer = SummaryWriter()
 
 ############################################
 ### training general parameters (parser) ###
@@ -99,9 +89,6 @@ print("we will train on the following device : ", device)
 ### the data for the training ###
 #################################
 
-# INIT of the train dataloader
-# here we will have 10 000 sentences for the training
-
 data_dir = "./snli_data/snli_1.0/"
 
 if args.data_dir is not None:
@@ -110,30 +97,21 @@ if args.data_dir is not None:
 train_dir = data_dir + "snli_1.0_train.txt"
 test_dir = data_dir + "snli_1.0_test.txt"
 
-print("loading data :")
+print("loading data :", end="")
 train_data_set = SnliDataset(dir=train_dir, nb_sentences=5000, msg=False)
 train_data_loader = DataLoader(train_data_set, batch_size=batch, shuffle=True)
 
 test_data_set = SnliDataset(dir=test_dir, nb_sentences=1000, msg=False)
 test_data_loader = DataLoader(test_data_set, batch_size=batch, shuffle=True)
-
-# make sure that the data load well
-# we print some information about the dataloader
-
-print("\t length data loader : ", len(train_data_loader))
-
-sentences, masks, train_labels = next(iter(train_data_loader))
-
-print(f"\t sentence batch shape: {sentences.size()}")
-print(f"\t attention mask batch shape: {sentences.size()}")
-print(f"\t Labels batch shape: {train_labels.size()}")
+print(u'\u2713')
 
 ###################################
 ### loss function and optimizer ###
 ###################################
 criterion = nn.CrossEntropyLoss()
 
-optimizer = AdamW(snli_model.parameters(), lr=5e-5)  # better perf with adam
+# Adam provides the best performances for the training
+optimizer = AdamW(snli_model.parameters(), lr=5e-5)
 
 lr_scheduler = get_scheduler(
     name="linear",
@@ -141,7 +119,6 @@ lr_scheduler = get_scheduler(
     num_warmup_steps=0,
     num_training_steps=n * len(train_data_loader)
 )
-
 
 #################################################
 ### training loop (using previous parameters) ###
@@ -154,18 +131,12 @@ def model_training():
     print()
     print("start training")
 
-    snli_model.to(device)  # gpu training
+    snli_model.to(device)
 
-    for epoch in range(n):  # loop over the dataset multiple times
+    for epoch in range(n):
 
-        print("epoch {}".format(epoch + 1))
-        #
-        # training part
-        #
+        ## training of the model ##
         snli_model.train()
-        avg_loss = 0
-        ep = 0
-
         with tqdm.tqdm(train_data_loader, unit="batch") as tepoch:
             for data in tepoch:
                 input_ids, attention_mask, labels = data[0].to(device), data[1].to(device), data[2].to(device)
@@ -181,37 +152,57 @@ def model_training():
                 # update of the learning rate
                 lr_scheduler.step()
 
-                # avg training loss
-                avg_loss += loss.item()
-                ep += 1
-
-                tepoch.set_postfix(loss=loss.item())
-
-        # test part
+        ## evaluation on the training set ###
         snli_model.eval()
-
         correct = 0
         total = 0
-
-        # model in eval mod (no dropout)
-        snli_model.eval()
-
-        # torch.no_gard >> help to save memory for the gpu.
+        total_loss = 0
+        ep = 0
         with torch.no_grad():
-
-            with tqdm.tqdm(test_data_loader, unit="batch") as tepoch:
+            with tqdm.tqdm(train_data_loader, unit="batch") as tepoch:
                 for data in tepoch:
                     input_ids, attention_mask, labels = data[0].to(device), data[1].to(device), data[2].to(device)
+
+                    # write the loss
                     logits = snli_model(input_ids=input_ids, attention_mask=attention_mask)
+                    loss = criterion(logits, torch.max(labels, 1)[1])
+                    total_loss += loss.item()
+                    ep += 1
+
+                    # write the accuracy
                     labels = torch.max(labels, 1)[1]
                     predicted = torch.max(logits, 1)[1]
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
 
-        print(f'test accuracy {100 * correct // total} %')
+        writer.add_scalar("train_loss", total_loss / ep, epoch)
+        writer.add_scalar("train_accuracy", correct / total, epoch)
 
-    print()
-    print('Finished Training')
+        ## evaluation on the test set ###
+        snli_model.eval()
+        correct = 0
+        total = 0
+        total_loss = 0
+        ep = 0
+        with torch.no_grad():
+            with tqdm.tqdm(test_data_loader, unit="batch") as tepoch:
+                for data in tepoch:
+                    input_ids, attention_mask, labels = data[0].to(device), data[1].to(device), data[2].to(device)
+
+                    # write the loss
+                    logits = snli_model(input_ids=input_ids, attention_mask=attention_mask)
+                    loss = criterion(logits, torch.max(labels, 1)[1])
+                    total_loss += loss.item()
+                    ep += 1
+
+                    # write the accuracy
+                    labels = torch.max(labels, 1)[1]
+                    predicted = torch.max(logits, 1)[1]
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+
+        writer.add_scalar("test_loss", total_loss / ep, epoch)
+        writer.add_scalar("test_accuracy", correct / total, epoch)
 
 
 ################
