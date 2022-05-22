@@ -17,12 +17,25 @@
 
 ## Command lines (How to use this git)
 
-First of all make sure to use the environnement provided thanks to the following command lines.
+First of all make sure to use the environnement.
 
-```
-conda env create -f python_env/nlp_env.yml
+- if you are using conda you can use the two following command :
+```commandline
+conda env create -f python_env/environment.yml
 conda activate nlp
 ```
+
+```commandline
+conda create --name nlp --file requirements.txt
+conda activate nlp
+```
+
+- if you are using a pip environment you can use :
+```commandline
+pip install -r requirements.txt
+```
+
+**WARNING**: All the environments were exported on windows 11 -64 bits.
 
 ### Download the data
 
