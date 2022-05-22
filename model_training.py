@@ -119,6 +119,9 @@ test_data_set = SnliDataset(dir=test_dir, nb_sentences=nb_test, msg=False)
 test_data_loader = DataLoader(test_data_set, batch_size=batch, shuffle=True)
 print(u'\u2713')
 
+print(f"sentences for the training {nb_train}")
+print(f"sentences for the test {nb_test}")
+
 ###################################
 ### loss function and optimizer ###
 ###################################
