@@ -44,6 +44,9 @@ To download the snli data the command line is the following :
 python data_download.py
 ```
 
+- in the training set we have $550152$ sentences
+- in the test set we have $10000$ sentences
+
 ### Pytorch lightning training script
 
 To run the *lightning_training.py* for some tests we used the following command line :

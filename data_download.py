@@ -4,7 +4,7 @@ from zipfile import ZipFile
 import os
 import glob
 
-
+# downloading the files
 print("start downloading")
 
 url = 'https://nlp.stanford.edu/projects/snli/snli_1.0.zip'

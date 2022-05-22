@@ -1,9 +1,3 @@
-'''
-TODO:
-    - add some more test for the results.
-    - add some test to be sure of the shape and what is inside the dataset.
-'''
-
 import pandas as pd
 import numpy as np
 import torch
