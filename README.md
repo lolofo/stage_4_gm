@@ -43,7 +43,6 @@ The objective was only to see the behaviour of the training with a small amount 
 
 To visualize our training performance we used the tool **tensorboard**. If *log_dir* is the name of the foler where there is the logs of your training then you can visualize the performance with the following commande line :
 
-
 ```
 tensorboard --logdir log_dir
 ```

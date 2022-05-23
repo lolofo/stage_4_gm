@@ -13,21 +13,15 @@ from torchtext.utils import download_from_url, extract_archive
 from torchtext.vocab import vocab
 from tqdm import tqdm
 
-from data.pipeline import TextPipeline
-from exception import InvalidOperationError
-from helpers import env
-from helpers.logger import log
-from helpers.tools import heuristic, save, load
-
 
 class SNLIDataset(Dataset):
 	LABEL = ['neutral', 'entailment', 'contradiction']
 	URL = 'https://nlp.stanford.edu/projects/snli/snli_1.0.zip'
 	SPLITS = ['train', 'dev', 'test']
 	
-	def __init__(self, split: str = 'train', cache_path: str = '_out', n: int = -1, shuffle=True):
+	def __init__(self, split: str = 'train', root: str = '_out', n_data: int = -1, transforms=None):
 		"""
-		
+
 		Args:
 			split       (str):
 			cache_path  (str):
@@ -38,47 +32,38 @@ class SNLIDataset(Dataset):
 		"""
 		
 		# assert
-		if split not in self.SPLITS:
-			raise InvalidOperationError(f'split {split} doesnt exist in SNLI')
+		if split not in _EXTRACTED_FILES.keys():
+			raise InvalidOperationError(f'split argument {split} doesnt exist for eSNLI')
 		
+		root = self.root(root)
 		self.split = split
-		self.classes = self.LABEL
-		root = self._root(cache_path=cache_path)
-		self.csv_path = path.join(root, f'{split}.csv')
-		self.jsonl_path = path.join(root, 'snli_1.0', f'snli_1.0_{split}.jsonl')
-		self.zip_path = path.join(root, '_snli.zip')
-
+		self.csv_path = path.join(root, _EXTRACTED_FILES[split])
+		self.zip_path = path.join(root, ZIP_FILEPATH)
+		self.transforms = transforms
 		
-		# Load csv into dataset
-		if path.exists(self.csv_path):
-			self._full = self._csv2data()
+		# download and prepare csv file if not exist
+		download_format_dataset(root, split)
 		
-		# translate jsonl into csv if not exist
-		else:
-			# download and unzip into jsonl file if not exist
-			if not path.exists(self.jsonl_path):
-				self._url2jsonl(extract_path=root)
+		# load the csv file to data
+		coltype = {'premise': str, 'hypothesis': str, 'label': 'category', 'explanation': str,
+		           'highlight_premise': str, 'highlight_hypothesis': str}
+		self.data = pd.read_csv(self.csv_path, dtype=coltype)
+		
+		# if n_data activated, reduce the dataset equally for each class
+		if n_data > 0:
+			_unique_label = self.data['label'].unique()
+			subset = [pd.DataFrame()] * len(_unique_label)
 			
-			# make csv
-			self._full = self._jsonl2csv()
-		
-		self.data = self._full
-		self.classes = self.LABEL
-		self._encode_label()
-		
-		if n > 0:
-			n = n // 3
-			if shuffle:
-				self.data = self.data.sample(frac=1).reset_index(drop=True)
-			subset = [pd.DataFrame()] * 3
-			for label in range(3):
-				subset[label] = self.data[self.data['class'] == label]
-				subset[label] = subset[label].sample(n=n) if shuffle else subset[label].head(n)
+			subset = [
+				self.data[self.data['label'] == label]  # slice at each label
+					.head(n_data // len(_unique_label))  # get the top n_data/3
+				for label in _unique_label
+			]
 			self.data = pd.concat(subset).reset_index(drop=True)
-			
+	
 	def __getitem__(self, index: int):
 		"""
-		
+
 		Args:
 			index ():
 
@@ -87,13 +72,14 @@ class SNLIDataset(Dataset):
 		"""
 		
 		# Load data and get label
-		if index >= len(self): raise IndexError
+		if index >= len(self): raise IndexError  # meet the end of dataset
 		
-		doc1 = self.data['premise'][index]
-		doc2 = self.data['hypothesis'][index]
-		y = self.data['class'][index]
+		sample = self.data.loc[index].to_dict()
 		
-		return (doc1, doc2), y
+		if self.transforms is not None:
+			sample = self.transforms(sample)
+		
+		return sample
 	
 	def __len__(self):
 		"""
@@ -108,7 +94,7 @@ class SNLIDataset(Dataset):
 	def select_class(self, filters: list, reset_id: bool = False):
 		"""
 		Select class to keep, used in case to binarize the dataset
-		
+
 		Args:
 			filters     (list): list of keeping class
 			            List of keeping class, as label name (ex. ['neutral']) or its id (ex. [1, 0])
@@ -201,7 +187,7 @@ class SNLIDataset(Dataset):
 			data = data[~data['judgment'].isin(nan) & ~data['premise'].isin(nan) & ~data['hypothesis'].isin(
 				nan)].dropna().reset_index()
 			data.to_csv(csv_path, index=False)
-			
+		
 		if env.disable_tqdm: log.info(f'Translate from .jsonl to {csv_path}')
 		
 		return data
@@ -237,135 +223,3 @@ class SNLIDataset(Dataset):
 		self.data['judgment'] = self.data['judgment'].astype('category')
 		self.data['judgment'] = self.data['judgment'].cat.reorder_categories(self.classes)
 		self.data['class'] = self.data['judgment'].cat.codes
-
-class HeuristicSNLIDataset(SNLIDataset):
-	
-	def __init__(self, spacy_model, split: str = 'train', cache_path: str = '_out', n: int = -1, shuffle=True):
-		super(HeuristicSNLIDataset, self).__init__(split, cache_path, n=-1, shuffle=False)
-		root = self._root(cache_path=cache_path)
-		self.heuristic_path = path.join(root, f'{split}_heuristic.pkl')
-		
-		if path.exists(self.heuristic_path):
-			#df_heuristic = pd.read_csv(self.heuristic_path)
-			heuristic_dict = load(self.heuristic_path)
-			df_heuristic = pd.DataFrame(heuristic_dict)
-			log.info(f'Loaded heuristics vector at {self.heuristic_path}')
-		else:
-			snli = SNLIDataset(split, cache_path, -1, False)
-			h = heuristic(snli, spacy_model)
-			heuristic_premise = [h_[0] for h_ in h[1]]
-			heuristic_hypothesis = [h_[1] for h_ in h[1]]
-			heuristic_dict = {'heuristic_premise': heuristic_premise, 'heuristic_hypothesis': heuristic_hypothesis}
-			save(heuristic_dict, self.heuristic_path)
-			df_heuristic = pd.DataFrame(heuristic_dict)
-			#df_heuristic.to_csv(self.heuristic_path, index=False, encoding='utf-8')
-			log.info(f'Saved heuristics vector at {self.heuristic_path}')
-		
-		self._full = pd.concat([self._full, df_heuristic], axis=1)
-		self.data = self._full
-		
-		if n > 0:
-			n = n // 3
-			if shuffle:
-				self.data = self.data.sample(frac=1).reset_index(drop=True)
-			subset = [pd.DataFrame()] * 3
-			for label in range(3):
-				subset[label] = self.data[self.data['class'] == label]
-				subset[label] = subset[label].sample(n=n) if shuffle else subset[label].head(n)
-			self.data = pd.concat(subset).reset_index(drop=True)
-	
-	def __getitem__(self, index: int):
-		"""
-
-		Args:
-			index ():
-
-		Returns:
-
-		"""
-		
-		# Load data and get label
-		if index >= len(self): raise IndexError
-		
-		doc1 = self.data['premise'][index]
-		doc2 = self.data['hypothesis'][index]
-		y = self.data['class'][index]
-		h1 = self.data['heuristic_premise'][index]
-		h2 = self.data['heuristic_hypothesis'][index]
-		
-		return (doc1, doc2), y, (h1, h2)
-
-def load_dataset(cache_path: str = '_out', n: int = -1) -> dict:
-	
-	return {
-		'train': SNLIDataset('train', cache_path, n, shuffle=True),
-		'val': SNLIDataset('dev', cache_path, n),
-		'test': SNLIDataset('test', cache_path, n)
-	}
-
-
-def build_vocab(dataset: SNLIDataset, pipeline: TextPipeline, vectors:str=None, cache_path: str = '_out'):
-	"""
-	Build vocab from given dataset (it should be on train set).
-	Args:
-		dataset ():
-		pipeline ():
-		vectors ():
-		cache_path ():
-
-	Returns:
-
-	"""
-	
-	vocab_path = path.join(dataset._root(cache_path), f'vocab_{pipeline}.pkl')
-	
-	if path.exists(vocab_path):
-		with tqdm(total=1, desc=f'Load vocab {vocab_path}', file=sys.stdout, disable=env.disable_tqdm) as bar:
-			with open(vocab_path, 'rb') as f:
-				vocabulary = pickle.load(f)
-			bar.update(1)
-		
-		if env.disable_tqdm: log.info(f'Load vocab, path="{vocab_path}"')
-		
-		return vocabulary
-	
-	sentences = pd.concat([dataset.data['premise'], dataset.data['hypothesis']]).tolist()
-	counter = Counter()
-	pbar_sentences = tqdm(pipeline(sentences), desc=f'Building vocab', unit='sentences', file=sys.stdout,
-	                      disable=env.disable_tqdm)
-	if env.disable_tqdm: log.info(f'Building vocabulary')
-	for tokens in pbar_sentences:
-		counter.update(tokens)
-	
-	vocabulary = vocab(counter, min_freq=1, specials=['<pad>', '<unk>'])
-	vocabulary.set_default_index(vocabulary['<unk>'])
-	# Save for next time use
-	with open(vocab_path, 'wb') as f:
-		pickle.dump(vocabulary, f)
-		pbar_sentences.set_postfix({'path': 'vocab_path'})
-		if env.disable_tqdm: log.info(f'Saving vocab at: {vocab_path}')
-	
-	pbar_sentences.close()
-	
-	return vocabulary
-
-def load_vocab(cache_path: str, pipeline: TextPipeline):
-	"""
-	Load vocab object that contains vector
-	Args:
-		cache_path (str):
-		pipeline (TextPipeline):
-
-	Returns:
-
-	"""
-	vocab_path = path.join(SNLIDataset._root(cache_path), f'vocab_{pipeline}.pkl')
-	
-	with tqdm(total=1, desc=f'Load vocab {vocab_path}', file=sys.stdout, disable=env.disable_tqdm) as bar:
-		with open(vocab_path, 'rb') as f:
-			vocabulary = pickle.load(f)
-		bar.update(1)
-	
-	if env.disable_tqdm: log.info(f'Load vocab, path="{vocab_path}"')
-	
-	return vocabulary
