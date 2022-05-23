@@ -29,111 +29,106 @@ import torchtext.transforms as T
 
 class BertNliLight(pl.LightningModule):
 
-    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss()):
-        super().__init__()
+	def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss()):
+		super().__init__()
 
-        # bert layer
-        # the bert layer will return the layer will return the attention weights
-        self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True)
+		# bert layer
+		# the bert layer will return the layer will return the attention weights
+		self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True)
 
-        self.bert_output = None
+		self.bert_output = None
 
-        # classifier head
-        self.classifier = nn.Sequential(
-            # fully connected layer
-            nn.Linear(in_features=768, out_features=3),
-        )
+		# classifier head
+		self.classifier = nn.Sequential(
+			# fully connected layer
+			nn.Linear(in_features=768, out_features=3),
+		)
 
-        self.train_acc = Accuracy(num_class=3)
-        self.val_acc = Accuracy(num_class=3)
-        self.test_acc = Accuracy(num_class=3)
-        self.criterion = criterion
+		self.train_acc = Accuracy(num_class=3)
+		self.val_acc = Accuracy(num_class=3)
+		self.test_acc = Accuracy(num_class=3)
+		self.criterion = criterion
 
-    def forward(self, input_ids, attention_mask, *args, **kwargs):
-        '''
-        input_ids :      torch.tensor of shape (batch_size , max_pad)
-        attention_mask : torch.tensor of shape (batch_size , max_pad)
+	def forward(self, input_ids, attention_mask, *args, **kwargs):
+		'''
+		input_ids :      torch.tensor of shape (batch_size , max_pad)
+		attention_mask : torch.tensor of shape (batch_size , max_pad)
 
-        The output of the model will be the logits of the model (weights before softmax)
-        '''
+		The output of the model will be the logits of the model (weights before softmax)
+		'''
+		
+		# don't save any tensor with gradient, conflict in multiprocessing
+		output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
+		cls_token = output.last_hidden_state[:, 0, :].clone()
 
-        self.bert_output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
+		
 
-        cls_token = self.bert_output.last_hidden_state[:, 0, :]
+		# the logits are the weights before the softmax.
+		logits = self.classifier(cls_token)
 
-        # the logits are the weights before the softmax.
-        logits = self.classifier(cls_token)
+		return logits
 
-        return logits
+	# return the attention.
+	def _get_att_weight(self, input_ids, attention_mask, *args, **kwargs):
+		self.bert_output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
+		result = torch.clone(self.bert_output.attentions)
 
+	def configure_optimizers(self):
+		'''
+		define the optimizer for the training
+		'''
+		optimizer = AdamW(self.parameters(), lr=5e-5)
 
-    def configure_optimizers(self):
-        '''
-        define the optimizer for the training
-        '''
-        optimizer = AdamW(self.parameters(), lr=5e-5)
+		return optimizer
 
-        return optimizer
+	######################
+	### training steps ###
+	######################
 
-    ######################
-    ### training steps ###
-    ######################
+	def training_step(self, train_batch, batch_idx):
+		input_ids, attention_mask, labels = train_batch
+		logits = self(input_ids, attention_mask)
 
-    def training_step(self, train_batch, batch_idx):
-        input_ids, attention_mask, labels = train_batch
-        logits = self.forward(input_ids, attention_mask)
+		# calculation of the loss
+		loss = self.criterion(logits, labels)
 
-        # calculation of the loss
-        loss = self.criterion(logits, labels)
+		class_pred = torch.softmax(logits, dim=1)
+		
+		return {'loss': loss, 'preds': class_pred, 'target': labels}
+		
+	def training_step_end(self, output):
+		self.train_acc(output['preds'], output['target'])
+		self.log("train_loss", output['loss'], on_step=False, on_epoch=True, logger=True)
+		self.log("train_acc", self.train_acc, on_step=False, on_epoch=True, logger=True)
+		
+	########################
+	### validation steps ###
+	########################
 
-        class_pred = torch.softmax(logits, dim=1)
+	def validation_step(self, val_batch, batch_idx):
+		print('validation step')
+		return self.training_step(val_batch, batch_idx)
 
-        self.train_acc(class_pred, labels)
+	def validation_step_end(self, output):
+		self.val_acc(output['preds'], output['target'])
+		self.log("val_loss", output['loss'], on_step=False, on_epoch=True, logger=True)
+		self.log("val_acc", self.val_acc, on_step=False, on_epoch=True, logger=True)
 
-        self.log("train_loss", loss, on_step=False, on_epoch=True, logger=True)
-        self.log("train_acc", self.train_acc, on_step=False, on_epoch=True, logger=True)
+	##################
+	### test steps ###
+	##################
+	def test_step(self, batch, batch_idx):
+		input_ids, attention_mask, labels = batch
+		logits = self.forward(input_ids, attention_mask)
 
-        return loss
+		# some tools for the end_validation
+		class_pred = torch.softmax(logits, dim=1)
+		return {'preds': class_pred, 'target': labels}
+		
 
-    ########################
-    ### validation steps ###
-    ########################
-
-    def validation_step(self, val_batch, batch_idx):
-        input_ids, attention_mask, labels = val_batch
-        logits = self.forward(input_ids, attention_mask)
-
-        # calculation of the loss
-        loss = self.criterion(logits, labels)
-
-        # some tools for the end_validation
-        class_pred = torch.softmax(logits, dim=1)
-
-        self.val_acc(class_pred, labels)
-        self.log("val_loss", loss, on_step=False, on_epoch=True, logger=True)
-        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True, logger=True)
-
-    ##################
-    ### test steps ###
-    ##################
-    def test_step(self, batch, batch_idx):
-        input_ids, attention_mask, labels = batch
-        logits = self.forward(input_ids, attention_mask)
-
-        # calculation of the loss
-        loss = self.criterion(logits, labels)
-
-        # some tools for the end_validation
-        class_pred = torch.softmax(logits, dim=1)
-
-        self.test_acc(class_pred, labels)
-        self.log("test_loss", loss, on_step=False, on_epoch=True, logger=True)
-        self.log("test_acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
-
-    # return the attention.
-    def _get_att_weight(self, input_ids, attention_mask, *args, **kwargs):
-        self.bert_output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
-        result = torch.clone(self.bert_output.attentions)
+	def test_step_end(self, output):
+		self.test_acc(output['preds'], output['target'])
+		self.log("test_acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
 
 
 ################
@@ -273,11 +268,11 @@ if __name__ == '__main__':
 	######################
 	
 	'''
-    TODO:
-        - make some research to understand the parameters of the trainer
-        - how to do cpu//gpu training
-        - how to get the information of the training (done we do it with the tensorboard)
-    '''
+	TODO:
+		- make some research to understand the parameters of the trainer
+		- how to do cpu//gpu training
+		- how to get the information of the training (done we do it with the tensorboard)
+	'''
 	
 	# set the direction to visualize the logs of the training
 	# the visualization will be done with tensorboard.
@@ -292,7 +287,7 @@ if __name__ == '__main__':
 	# call back
 	early_stopping = cb.EarlyStopping('val_acc', patience=5, verbose=args.exp, mode='min')  # stop if no improvement withing 5 epochs
 	model_checkpoint = cb.ModelCheckpoint(
-		monitor='val_loss', mode='min',  # save the minimum val_loss
+		filename='best', monitor='val_loss', mode='min',  # save the minimum val_loss
 	)
 	
 	trainer = pl.Trainer(
@@ -302,7 +297,7 @@ if __name__ == '__main__':
 		log_every_n_steps=1,
 		default_root_dir=args.log_dir,
 		logger=logger,
-		callbacks=[early_stopping],
+		callbacks=[early_stopping, model_checkpoint],
 		detect_anomaly=not args.exp
 	)
 	

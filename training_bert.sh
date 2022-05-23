@@ -11,11 +11,11 @@ module load spack/cudnn/8.0.4.30-11.0-linux-x64
 
 source $VENV/nlp/bin/activate
 
-EXEC_FILE=src/regularization_delta_entropy.py
+EXEC_FILE=src/training_bert.py
 
 echo
 echo =============== RUN ${OAR_JOB_ID} ===============
 echo Run $EXEC_FILE at `date +"%T, %d-%m-%Y"`
-python $EXEC_FILE -o $RUNDIR -b 512 -e 50 --lambda 0.0 --vectors glove.840B.300d -m exp --name $OAR_JOB_NAME --version lambda1=0
+python $EXEC_FILE -e 50 -b 512 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_nli --version run=1
 
 echo Script ended
