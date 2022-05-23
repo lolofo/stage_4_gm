@@ -34,6 +34,8 @@ parser.add_argument("-t", "--model_type", type=int)
 parser.add_argument("-d", "--data_dir")
 parser.add_argument("-s", "--save_dir")
 parser.add_argument("-mn", "--model_name")
+parser.add_argument("-nb_train", "--nb_train_sent", type=int)
+parser.add_argument("-nb_test", "--nb_test_sent", type=int)
 
 args = parser.parse_args()
 
@@ -98,12 +100,27 @@ train_dir = data_dir + "snli_1.0_train.txt"
 test_dir = data_dir + "snli_1.0_test.txt"
 
 print("loading data :", end="")
-train_data_set = SnliDataset(dir=train_dir, nb_sentences=5000, msg=False)
+
+nb_train = 5000
+nb_test = 1000
+
+if args.nb_train_sent is not None:
+    if nb_train <= 550152:
+        nb_train = args.nb_train_sent
+
+if args.nb_test_sent is not None:
+    if nb_test <= 10000:
+        nb_test = args.nb_test_sent
+
+train_data_set = SnliDataset(dir=train_dir, nb_sentences=nb_train, msg=False)
 train_data_loader = DataLoader(train_data_set, batch_size=batch, shuffle=True)
 
-test_data_set = SnliDataset(dir=test_dir, nb_sentences=1000, msg=False)
+test_data_set = SnliDataset(dir=test_dir, nb_sentences=nb_test, msg=False)
 test_data_loader = DataLoader(test_data_set, batch_size=batch, shuffle=True)
 print(u'\u2713')
+
+print(f"sentences for the training {nb_train}")
+print(f"sentences for the test {nb_test}")
 
 ###################################
 ### loss function and optimizer ###
@@ -119,6 +136,7 @@ lr_scheduler = get_scheduler(
     num_warmup_steps=0,
     num_training_steps=n * len(train_data_loader)
 )
+
 
 #################################################
 ### training loop (using previous parameters) ###
@@ -217,7 +235,7 @@ model_training()
 ######################
 
 
-save_dir = "checkpoint"
+save_dir = "./checkpoint"
 model_name = "default.pt"
 
 if args.save_dir is not None:
@@ -228,4 +246,4 @@ if args.model_name is not None:
 
 PATH = save_dir + "/" + model_name
 
-torch.save(snli_model.state_dict(), PATH)
+torch.save(snli_model, PATH)

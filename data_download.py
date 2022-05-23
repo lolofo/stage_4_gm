@@ -4,7 +4,7 @@ from zipfile import ZipFile
 import os
 import glob
 
-
+# downloading the files
 print("start downloading")
 
 url = 'https://nlp.stanford.edu/projects/snli/snli_1.0.zip'
@@ -40,7 +40,12 @@ except FileNotFoundError:
 for f in glob.glob("snli_data/snli_1.0/snli_1.0*.jsonl"):
     os.remove(f)
 
+# create the folder for the ckeckpoints
+if not(os.path.exists("./checkpoint/")):
+    # create the folder for the different checkpoints.
+    os.mkdir("./checkpoint/")
 
-## prepare the environnement ##
+if not(os.path.exists("./plots/")):
+    os.mkdir("./plots/")
 
 
