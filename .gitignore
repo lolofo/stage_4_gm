@@ -15,10 +15,6 @@ lightning_logs
 runs
 */runs/*
 
-# Data
-snli_data
-*/snli_data/*
-
 
 # Mac DS_Store
 .DS_Store

@@ -1,4 +1,3 @@
-
 ## Table of content
 
 - [Introduction](#introduction)
@@ -62,9 +61,12 @@ conda activate nlp
 
 To download the snli data the command line is the following :
 
-```
+```commandline
 python data_download.py
 ```
+
+This command line will create the *.cache* folder and will save the txt data from the snli library into it. This folder
+will be really important this is the location where we will have all our data. In these textual datas we have :
 
 - in the training set we have 550152 sentences
 - in the test set we have 10000 sentences
@@ -83,7 +85,8 @@ python training_bert.py -e 3 -b 4 -n 16 --experiment bert --version 0
 The objective was only to see the behaviour of the training with a small amount of data. (Spot some mistakes and see the
 behaviour of the loss)
 
-To visualize our training performance we used the tool **tensorboard**. The default logdir in in `.cache/logs/$EXPERIMENT` 
+To visualize our training performance we used the tool **tensorboard**. The default logdir in
+in `.cache/logs/$EXPERIMENT`
 where `$EXPERIMENT` is specified in `--experiment`. The log could be changed using flag `--logdir` or shorthand `-s`
 
 ```commandline

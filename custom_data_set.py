@@ -1,12 +1,11 @@
 import pandas as pd
-import numpy as np
+import os
 import torch
 
 from transformers import BertTokenizer
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-
-import tqdm
+from os import path
 
 '''
 creation of our own class dataset to store our data
@@ -15,9 +14,13 @@ creation of our own class dataset to store our data
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 # different directions
-train_dir = "snli_data/snli_1.0/snli_1.0_train.txt"
-dev_dir = "snli_data/snli_1.0/snli_1.0_dev.txt"
-test_dir = "snli_data/snli_1.0/snli_1.0_test.txt"
+
+cache = path.join(os.getcwd(), '.cache')
+data_dir = path.join(cache, 'raw_data', 'snli_data', 'snli_1.0')
+
+train_dir = path.join(data_dir, 'snli_1.0_train.txt')
+dev_dir = path.join(data_dir, 'snli_1.0_dev.txt')
+test_dir = path.join(data_dir, 'snli_1.0_test.txt')
 
 # max_pad --> padding for the tokenizer
 max_pad = 150
