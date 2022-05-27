@@ -298,6 +298,7 @@ if __name__ == '__main__':
 
     # log_dir for the logger
     parser.add_argument('-s', '--log_dir', default=path.join(cache, 'logs'))
+
     parser.add_argument('-n', '--nb_data', type=int, default=-1)
     parser.add_argument('-mn', '--model_name')
 
