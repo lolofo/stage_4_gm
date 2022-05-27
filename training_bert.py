@@ -129,96 +129,139 @@ class BertNliLight(pl.LightningModule):
 		self.test_acc(output['preds'], output['target'])
 		self.log("test_acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
 
+    # return the attention.
+    def get_attention(self,
+                      input_ids,
+                      attention_mask,
+                      test_mod: bool = False,
+                      *args, **kwargs):
+
+        outputs = self.bert(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            *args, **kwargs)
+
+        attention_tensor = outputs.attentions
+
+        res = torch.stack(attention_tensor, dim=1)
+
+        # remove the padding tokens
+
+        mask = attention_mask[0, :].detach().numpy() == 1
+        res = res[:, :, :, mask, :]
+        res = res[:, :, :, :, mask]
+
+        tokens = tokenizer.convert_ids_to_tokens(input_ids[0, mask])
+
+        if test_mod:
+            print("test passed : ", end='')
+            passed = True
+            for n in range(len(attention_tensor)):
+                for n_head in range(12):
+                    for x in range(input_ids.shape[1]):
+                        for y in range(input_ids.shape[1]):
+                            if mask[x] == 1 and mask[y] == 1:
+                                if attention_tensor[n][0, n_head, x, y] != res[0, n, n_head, x, y]:
+                                    passed = False
+
+            if passed:
+                print(u'\u2713')
+            else:
+                print("x")
+
+        return res, tokens, input_ids, attention_mask
+
 
 ################
 ### the data ###
 ################
 
 class SNLIDataModule(pl.LightningDataModule):
-	
-	def __init__(self, cache: str, batch_size=8, num_workers=0, nb_data=-1):
-		super().__init__()
-		self.cache = cache
-		self.batch_size = batch_size
-		self.num_workers = num_workers
-		self.nb_data = nb_data
 
-		self.t_add_sep = t.AddSepTransform()
-		self.t_tokenize = t.BertTokenizeTransform(max_pad=150)
-		self.t_tensor = T.ToTensor()
-	
-	def prepare_data(self):
-		# called on 1 gpu
-		
-		# download dataset if not exist
-		if not path.exists(path.join(self.cache, 'snli')):
-			load_dataset('snli', cache_dir=self.cache)
-	
-	def setup(self, stage: str = None):
-		# called on every GPU
-		# load dataset from cache in each instance of GPU
-		if stage == 'fit' or stage is None:
-			self.train_set = load_dataset('snli', split='train', cache_dir=self.cache).filter(lambda example: example['label'] >= 0)
-			self.val_set = load_dataset('snli', split='validation', cache_dir=self.cache).filter(lambda example: example['label'] >= 0)
-			
-			if self.nb_data > 0:
-				self.train_set = self.train_set.shard(num_shards=len(self.train_set) // self.nb_data + 1, index=0)
-				self.val_set = self.val_set.shard(num_shards=len(self.val_set) // self.nb_data + 1, index=0)
-		
-		if stage == 'test' or stage is None:
-			
-			self.test_set = load_dataset('snli', split='test', cache_dir=self.cache).filter(lambda example: example['label'] >= 0)
-			if self.nb_data > 0:
-				self.test_set = self.test_set.shard(num_shards=len(self.test_set) // self.nb_data + 1, index=0)
-	
-	def train_dataloader(self):
-		return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, collate_fn=self.collate, num_workers=self.num_workers)
-	
-	def val_dataloader(self):
-		return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False, collate_fn=self.collate, num_workers=self.num_workers)
-	
-	def test_dataloader(self):
-		return DataLoader(self.test_set, batch_size=self.batch_size, shuffle=False, collate_fn=self.collate, num_workers=self.num_workers)
-	
-	## ======= PRIVATE SECTIONS ======= ##
-	def collate(self, batch):
-		# prepare batch of data for dataloader
-		batch = self.list2dict(batch)
-		
-		texts = self.t_add_sep(batch['premise'], batch['hypothesis'])
-		input_ids, attention_mask = self.t_tokenize(texts)
-		input_ids = self.t_tensor(input_ids)
-		attention_mask = self.t_tensor(attention_mask)
-		labels = self.t_tensor(batch['label'])
-		return input_ids, attention_mask, labels
-	
-	def list2dict(self, batch):
-		# convert list of dict to dict of list
-		if isinstance(batch, dict): return {k: list(v) for k, v in batch.items()}  # handle case where no batch
-		return {k: [row[k] for row in batch] for k in batch[0]}
+    def __init__(self, cache: str, batch_size=8, num_workers=0, nb_data=-1):
+        super().__init__()
+        self.cache = cache
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.nb_data = nb_data
 
+        self.t_add_sep = t.AddSepTransform()
+        self.t_tokenize = t.BertTokenizeTransform(max_pad=150)
+        self.t_tensor = t.CustomToTensor()
 
-###############################
-### parser for the training ###
-###############################
+    def prepare_data(self):
+        # called on 1 gpu
+
+        # download dataset if not exist
+        if not path.exists(path.join(self.cache, 'snli')):
+            load_dataset('snli', cache_dir=self.cache)
+
+    def setup(self, stage: str = None):
+        # called on every GPU
+        # load dataset from cache in each instance of GPU
+        if stage == 'fit' or stage is None:
+            self.train_set = load_dataset('snli', split='train', cache_dir=self.cache).filter(
+                lambda example: example['label'] >= 0)
+            self.val_set = load_dataset('snli', split='validation', cache_dir=self.cache).filter(
+                lambda example: example['label'] >= 0)
+
+            if self.nb_data > 0:
+                self.train_set = self.train_set.shard(num_shards=len(self.train_set) // self.nb_data + 1, index=0)
+                self.val_set = self.val_set.shard(num_shards=len(self.val_set) // self.nb_data + 1, index=0)
+
+        if stage == 'test' or stage is None:
+
+            self.test_set = load_dataset('snli', split='test', cache_dir=self.cache).filter(
+                lambda example: example['label'] >= 0)
+            if self.nb_data > 0:
+                self.test_set = self.test_set.shard(num_shards=len(self.test_set) // self.nb_data + 1, index=0)
+
+    def train_dataloader(self):
+        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, collate_fn=self.collate,
+                          num_workers=self.num_workers)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False, collate_fn=self.collate,
+                          num_workers=self.num_workers)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_set, batch_size=self.batch_size, shuffle=False, collate_fn=self.collate,
+                          num_workers=self.num_workers)
+
+    ## ======= PRIVATE SECTIONS ======= ##
+    def collate(self, batch):
+        # prepare batch of data for dataloader
+        batch = self.list2dict(batch)
+
+        texts = self.t_add_sep(batch['premise'], batch['hypothesis'])
+        input_ids, attention_mask = self.t_tokenize(texts)
+        input_ids = self.t_tensor(input_ids)
+        attention_mask = self.t_tensor(attention_mask)
+        labels = self.t_tensor(batch['label'])
+        return input_ids, attention_mask, labels
+
+    def list2dict(self, batch):
+        # convert list of dict to dict of list
+        if isinstance(batch, dict): return {k: list(v) for k, v in batch.items()}  # handle case where no batch
+        return {k: [row[k] for row in batch] for k in batch[0]}
+
 
 def get_num_workers() -> int:
-	'''
-	Get maximum logical workers that a machine has
-	Args:
-		default (int): default value
+    '''
+    Get maximum logical workers that a machine has
+    Args:
+        default (int): default value
 
-	Returns:
-		maximum workers number
-	'''
-	if hasattr(os, 'sched_getaffinity'):
-		try:
-			return len(os.sched_getaffinity(0))
-		except Exception:
-			pass
-	
-	num_workers = os.cpu_count()
-	return num_workers if num_workers is not None else 0
+    Returns:
+        maximum workers number
+    '''
+    if hasattr(os, 'sched_getaffinity'):
+        try:
+            return len(os.sched_getaffinity(0))
+        except Exception:
+            pass
+
+    num_workers = os.cpu_count()
+    return num_workers if num_workers is not None else 0
 
 
 if __name__ == '__main__':
