@@ -7,9 +7,9 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from os import path
 
-'''
-creation of our own class dataset to store our data
-'''
+"""
+easier to use than the DataModule for the inference part.
+"""
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
