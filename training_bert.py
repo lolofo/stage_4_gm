@@ -286,6 +286,8 @@ if __name__ == '__main__':
 
     # .cache folder >> the folder were everything will be saved
     cache = path.join(os.getcwd(), '.cache')
+    if not path.exists(path.join(cache, 'plots')):
+        os.mkdir(path.join(cache, 'plots'))
 
     parser.add_argument('-e', '--epoch', type=int, default=1)
     parser.add_argument('-b', '--batch_size', type=int, default=4)
@@ -338,9 +340,9 @@ if __name__ == '__main__':
     # set the direction to visualize the logs of the training
     # the visualization will be done with tensorboard.
     logger = TensorBoardLogger(
-        save_dir=args.log_dir, # the main log folder
-        name=args.experiment, # name of the log >> related to the name of the model we use
-        version=args.version, # version of the log
+        save_dir=args.log_dir,  # the main log folder
+        name=args.experiment,  # name of the log >> related to the name of the model we use
+        version=args.version,  # version of the log
         default_hp_metric=False  # deactivate hp_metric on tensorboard visualization
     )
     # logger = TensorBoardLogger(name=args.log_dir, save_dir=log_dir + '/')

@@ -16,3 +16,5 @@ if DEVICE.type == 'cuda':
     print('Cached:   ', round(torch.cuda.memory_reserved(0) / 1024 ** 3, 1), 'GB')
 
 print("we will use the following device : ", DEVICE)
+
+
