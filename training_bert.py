@@ -55,13 +55,6 @@ class BertNliLight(pl.LightningModule):
         self.criterion = criterion
 
     def forward(self, input_ids, attention_mask, *args, **kwargs):
-        '''
-        input_ids :      torch.tensor of shape (batch_size , max_pad)
-        attention_mask : torch.tensor of shape (batch_size , max_pad)
-
-        The output of the model will be the logits of the model (weights before softmax)
-        '''
-
         # don't save any tensor with gradient, conflict in multiprocessing
         output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
         cls_token = output.last_hidden_state[:, 0, :].clone()

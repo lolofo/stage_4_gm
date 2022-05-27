@@ -2,18 +2,12 @@
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 
-.cache
-*/.cache/*
 
 __pycache__
 */__pycache__/*
 
 lightning_logs
 */lightning_logs/*
-
-# tensorboard training
-runs
-*/runs/*
 
 
 # Mac DS_Store
