@@ -15,4 +15,4 @@ if DEVICE.type == 'cuda':
     print('Allocated:', round(torch.cuda.memory_allocated(0) / 1024 ** 3, 1), 'GB')
     print('Cached:   ', round(torch.cuda.memory_reserved(0) / 1024 ** 3, 1), 'GB')
 
-print("we will train on the following device : ", DEVICE)
+print("we will use the following device : ", DEVICE)
