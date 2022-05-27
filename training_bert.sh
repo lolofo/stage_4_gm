@@ -9,13 +9,14 @@
 module load spack/cuda/11.3.1
 module load spack/cudnn/8.0.4.30-11.0-linux-x64
 
-source $VENV/nlp/bin/activate
+conda deactivate
+source $VENV/bert/bin/activate
 
-EXEC_FILE=src/training_bert.py
+EXEC_FILE=training_bert.py
 
 echo
 echo =============== RUN ${OAR_JOB_ID} ===============
 echo Run $EXEC_FILE at `date +"%T, %d-%m-%Y"`
-python $EXEC_FILE -e 50 -b 512 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_nli --version run=1
+python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_nli --version run=1 --exp
 
 echo Script ended

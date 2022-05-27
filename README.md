@@ -17,6 +17,33 @@
 
 First of all make sure to use the environnement.
 
+### Virtualenv - pip environment (recommended)
+
+Path to $VENV should be saved in `~/.bashrc`
+
+```commandline
+# Specify path to venv
+export VENV=path/to/venv
+echo $VENV
+
+# Create venv
+python -m venv $VENV/bert
+
+# Activate venv
+source $VENV/bert/bin/activate
+
+# Replicate on cpu
+pip install -r python_env/requirements.cpu.txt --no-cache-dir
+
+# Replicate on gpu
+pip install -r python_env/requirements.gpu.txt --no-cache-dir
+
+# Exit venv
+deactivate
+```
+
+### Conda environment
+
 - if you are using conda you can use the two following command :
 
 ```commandline
@@ -27,12 +54,6 @@ conda activate nlp
 ```commandline
 conda create --name nlp --file requirements.txt
 conda activate nlp
-```
-
-- if you are using a pip environment you can use :
-
-```commandline
-pip install -r requirements.txt
 ```
 
 **WARNING**: All the environments were exported on windows 11 -64 bits.
@@ -50,18 +71,21 @@ python data_download.py
 
 ### Pytorch lightning training script
 
-To run the *lightning_training.py* for some tests we used the following command line :
+To run the *training_bert.py* for some tests we used the following command line :
 
 ```commandline
-python lightning_training.py -n 3 -b 4 -nb_train 100 -nb_test 20 -logs log_test
+python training_bert.py --epoch 3 --batch_size 4 --nb_data 16 --experiment bert --version 0
+
+# Or by shorthand
+python training_bert.py -e 3 -b 4 -n 16 --experiment bert --version 0
 ```
 
 The objective was only to see the behaviour of the training with a small amount of data. (Spot some mistakes and see the
 behaviour of the loss)
 
-To visualize our training performance we used the tool **tensorboard**. If *log_dir* is the name of the foler where
-there is the logs of your training then you can visualize the performance with the following commande line :
+To visualize our training performance we used the tool **tensorboard**. The default logdir in in `.cache/logs/$EXPERIMENT` 
+where `$EXPERIMENT` is specified in `--experiment`. The log could be changed using flag `--logdir` or shorthand `-s`
 
 ```commandline
-tensorboard --logdir log_dir
+tensorboard --logdir .cache/logs/$EXPERIMENT
 ```

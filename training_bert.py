@@ -106,7 +106,6 @@ class BertNliLight(pl.LightningModule):
 	########################
 
 	def validation_step(self, val_batch, batch_idx):
-		print('validation step')
 		return self.training_step(val_batch, batch_idx)
 
 	def validation_step_end(self, output):

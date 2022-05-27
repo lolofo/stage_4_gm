@@ -32,3 +32,4 @@ snli_data
 # Model checkpoint
 **/*.pt
 **/**/*.pt
+/.cache/
