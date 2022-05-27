@@ -339,7 +339,7 @@ if __name__ == '__main__':
     # the visualization will be done with tensorboard.
     logger = TensorBoardLogger(
         save_dir=args.log_dir, # the main log folder
-        name=args.experiment, # name of the log
+        name=args.experiment, # name of the log >> related to the name of the model we use
         version=args.version, # version of the log
         default_hp_metric=False  # deactivate hp_metric on tensorboard visualization
     )
