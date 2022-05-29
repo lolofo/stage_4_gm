@@ -76,7 +76,7 @@ class RawAttention:
         mask = attention_mask[0, :].detach().numpy() == 1
         res = res[:, :, :, mask, :]
         res = res[:, :, :, :, mask]
-        self.attention_tensor = res.detach().clone() # >> fastest way to clone a tensor
+        self.attention_tensor = res.detach().clone()  # >> fastest way to clone a tensor
 
         ## >> start test for the attention tensor
         if test_mod:
@@ -148,26 +148,26 @@ class RawAttention:
 
         self.heads_agregation(num_head=num_head, heads_concat=heads_concat)
         length = len(self.tokens)
-        n_layers, _, _ = self.att_tens_agr.shape # number of attention heads
-        adj_mat = np.zeros((n_layers * length, n_layers * length))
+        n_layers, _, _ = self.att_tens_agr.shape  # number of attention heads
+        self.adj_mat = np.zeros((n_layers * length, n_layers * length))
 
         # the labels -> the name of each node to know where it is.
-        labels = {}
+        self.label = {}
 
         for i in range(n_layers):
             if i == 0:
                 for u in range(length):
                     # input labels
                     buff = "Layer_" + str(i) + "_" + str(u)
-                    labels[buff] = u
+                    self.label[buff] = u
             else:
                 for u in range(length):
                     k_u = length * i + u
                     buff = "Layer_" + str(i) + "_" + str(u)
-                    labels[buff] = k_u
+                    self.label[buff] = k_u
                     for v in range(length):
                         k_v = length * (i - 1) + v
-                        adj_mat[k_u][k_v] = self.att_tens_agr[i][u][v]
+                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i][u][v]
 
         # >> start the test
         if test_mod:
@@ -183,7 +183,7 @@ class RawAttention:
                     if n > 0:
                         for x in range(length):
                             for y in range(length):
-                                if self.attention_tensor[0, n, num_head, x, y].detach().numpy() != adj_mat[ \
+                                if self.attention_tensor[0, n, num_head, x, y].detach().numpy() != self.adj_mat[ \
                                         length * n + x, length * (n - 1) + y]:
                                     passed = False
                                     break
@@ -193,10 +193,6 @@ class RawAttention:
                 else:
                     print("x")
         # >> end the test
-
-        # setting up the attributes
-        self.adj_mat = np.copy(adj_mat)
-        self.label = labels.copy()
 
     def _create_attention_graph(self):
         """Creation of a networkx Digraph based on the adj_matrix.
