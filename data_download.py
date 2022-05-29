@@ -7,6 +7,12 @@ from os import path
 # downloading the files
 print("start downloading")
 
+# first we set the direction of the git.
+cwd = os.getcwd().split(os.path.sep)
+while cwd[-1] != "stage_4_gm":
+    os.chdir("..")
+    cwd = os.getcwd().split(os.path.sep)
+
 url = 'https://nlp.stanford.edu/projects/snli/snli_1.0.zip'
 response = wget.download(url, "snli_data.zip")
 print()
@@ -38,7 +44,3 @@ try:
     print("Finished !")
 except FileNotFoundError:
     print("verify that all the files are present")
-
-
-
-

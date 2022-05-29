@@ -76,7 +76,7 @@ class RawAttention:
         mask = attention_mask[0, :].detach().numpy() == 1
         res = res[:, :, :, mask, :]
         res = res[:, :, :, :, mask]
-        self.attention_tensor = torch.clone(res)
+        self.attention_tensor = res.detach().clone() # >> fastest way to clone a tensor
 
         ## >> start test for the attention tensor
         if test_mod:
@@ -124,7 +124,9 @@ class RawAttention:
             # TODO : heads agregation
             pass
         else:
-            self.att_tens_agr = torch.clone(self.attention_tensor[0, :, num_head, :, :])
+            # clone just the tensor without the gradient
+            # here the gradient is not usefull
+            self.att_tens_agr = self.attention_tensor[0, :, num_head, :, :].detach().clone()
 
     ################################
     ### defining the graph tools ###
@@ -137,7 +139,7 @@ class RawAttention:
                            ):
         """ Creation of the adjacency matrix for the attention graph
 
-        /!\ the adj matrix has only sens for the heads agregation problem
+        /!\ WARNING : the adj matrix has only sens for the heads agregation problem
 
         :param heads_concat : concatenation or not of the heads
         :param num_head : if we don't concat the heads, what head should we use
@@ -145,7 +147,8 @@ class RawAttention:
         """
 
         self.heads_agregation(num_head=num_head, heads_concat=heads_concat)
-        n_layers, length, _ = self.att_tens_agr.shape
+        length = len(self.tokens)
+        n_layers, _, _ = self.att_tens_agr.shape # number of attention heads
         adj_mat = np.zeros((n_layers * length, n_layers * length))
 
         # the labels -> the name of each node to know where it is.
@@ -165,7 +168,8 @@ class RawAttention:
                     for v in range(length):
                         k_v = length * (i - 1) + v
                         adj_mat[k_u][k_v] = self.att_tens_agr[i][u][v]
-        # the test part
+
+        # >> start the test
         if test_mod:
             if num_head < 0 or num_head > 11:
                 print("error : please choose a head for the test part")
@@ -182,15 +186,17 @@ class RawAttention:
                                 if self.attention_tensor[0, n, num_head, x, y].detach().numpy() != adj_mat[ \
                                         length * n + x, length * (n - 1) + y]:
                                     passed = False
+                                    break
 
                 if passed:
                     print(u'\u2713')
                 else:
                     print("x")
+        # >> end the test
 
         # setting up the attributes
-        self.adj_mat = adj_mat
-        self.label = labels
+        self.adj_mat = np.copy(adj_mat)
+        self.label = labels.copy()
 
     def _create_attention_graph(self):
         """Creation of a networkx Digraph based on the adj_matrix.
@@ -207,7 +213,7 @@ class RawAttention:
                 nx.set_edge_attributes(g, {(i, j): self.adj_mat[i, j]}, 'capacity')
 
         # the graph is also created to have capacities so we can perform max flow problem on it
-        self.attention_graph = g
+        self.attention_graph = g.copy()
 
     def set_up_graph(self, num_head, heads_concat, test_mod=False):
         self._create_adj_matrix(heads_concat=heads_concat, num_head=num_head, test_mod=test_mod)
@@ -225,11 +231,10 @@ class RawAttention:
         :param graph_width : the size of the final graph
         :param n_layers : number of multi-head-attention layer in the model (in bert it is 12)
         """
-        fig = None
-
         if not (self.set_gr):
             print("/!\ WARNINNG : you didn't set up the graph so we proceed it")
-            self.set_up_graph(num_head=1, heads_concat=False)
+            # we must find a way to concat the different heads
+            self.set_up_graph(heads_concat=True)
 
         pos = {}
         label_pos = {}
@@ -243,13 +248,16 @@ class RawAttention:
         for key in self.label:
             index_to_labels[self.label[key]] = self.tokens[int(key.split("_")[-1])]
             if self.label[key] >= length:
+                # only label the labels on the left side
                 index_to_labels[self.label[key]] = ''
 
         fig = plt.figure(figsize=(graph_width, graph_width))
 
-        nx.draw_networkx_nodes(self.attention_graph, pos, node_color='green', label=index_to_labels, node_size=50)
+        #  label=index_to_labels
+        nx.draw_networkx_nodes(self.attention_graph, pos, node_color='green', node_size=50)
         nx.draw_networkx_labels(self.attention_graph, pos=label_pos, labels=index_to_labels, font_size=10)
 
+        # draw the edges
         all_weights = []
         for (node1, node2, data) in self.attention_graph.edges(data=True):
             all_weights.append(data['weight'])
@@ -263,6 +271,6 @@ class RawAttention:
             w = weight
             width = w
             nx.draw_networkx_edges(self.attention_graph, pos, edgelist=weighted_edges, width=width,
-                                   edge_color='darkblue')
+                                   edge_color='darkred')
 
         return fig

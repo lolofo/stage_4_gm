@@ -20,8 +20,8 @@ class HeadsRole:
                  n_head: int = 12
                  ):
 
-        self.input_ids = input_ids
-        self.attention_mask = attention_masks
+        self.input_ids = input_ids.detach().clone()
+        self.attention_mask = attention_masks.detach().clone()
         self.nb_sentences = input_ids.shape[0]  # >> number of sentences of which we will do the training
 
         # the confidence map
@@ -56,7 +56,7 @@ class HeadsRole:
                     buff = buff[:, 0:(nb_tokens - 1)].detach().numpy()
                     self.confidence_map[n, h] += buff.max()
 
-        return self.confidence_map / self.nb_sentences
+        self.confidence_map /= self.nb_sentences
 
     def plot_confidence(self):
 
