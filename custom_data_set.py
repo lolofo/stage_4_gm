@@ -15,6 +15,12 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
 # different directions
 
+# first we set the direction of the git.
+cwd = os.getcwd().split(os.path.sep)
+while cwd[-1] != "stage_4_gm":
+    os.chdir("..")
+    cwd = os.getcwd().split(os.path.sep)
+
 cache = path.join(os.getcwd(), '.cache')
 data_dir = path.join(cache, 'raw_data', 'snli_data', 'snli_1.0')
 

@@ -1,24 +1,22 @@
 """
-first test of loading a model and use the attention files
+RUNNING SOME TESTS :
+    - the plots will be on the folder plots/attention_test_runs in the .cache folder
 """
 from training_bert import BertNliLight
 from custom_data_set import SnliDataset
 from torch.utils.data import DataLoader
-
-from attention_algorithms.raw_attention import create_adj_matrix
-from attention_algorithms.raw_attention import create_attention_graph
-from attention_algorithms.raw_attention import draw_attention_graph
-
-from attention_algorithms.heads_role import attention_confidence
-from attention_algorithms.heads_role import plot_confidence
+from attention_algorithms.raw_attention import RawAttention
+from attention_algorithms.heads_role import HeadsRole
 
 import matplotlib.pyplot as plt
 import os
 from os import path
 
-# first load the model
-# we load the pre-trained model for the tests.
-cache = path.join(os.getcwd(), '.cache', 'logs', 'bert', '0', 'checkpoints')
+plots_folder = os.path.join('.cache', 'plots')
+graph_folder = ""
+if not path.exists(path.join(plots_folder, "attention_test_runs")):
+    os.mkdir(path.join(path.join(plots_folder, "attention_test_runs")))
+
 model = BertNliLight()
 model.eval()
 
@@ -28,33 +26,29 @@ data_loader = DataLoader(data_set, batch_size=1, shuffle=False)
 
 sentences, masks, train_labels = next(iter(data_loader))
 
-attention_tensors, tokens, input_ids, attention_mask = model.get_attention(sentences, masks, test_mod=True)
+print(f"shape of the sentences : {sentences.shape}")
+print(f"shape of the masks : {masks.shape}")
+print(f"numer of non-mask tokens : {masks.detach().numpy().sum()}")
 
-adj_matrix, labels = create_adj_matrix(attention_tensors,
-                                       heads_concat=False,
-                                       num_head=1,
-                                       test_mod=True)
+raw_attention_inst = RawAttention(model=model,
+                                  input_ids=sentences,
+                                  attention_mask=masks)
 
-###################################
-### test of the attention graph ###
-###################################
+print(f"shape of the attention tensor : {raw_attention_inst.attention_tensor.shape}")
 
-plots_folder = os.path.join('.cache', 'plots')
-graph_folder = ""
-if not path.exists(path.join(plots_folder, "attention_test_runs")):
-    os.mkdir(path.join(path.join(plots_folder, "attention_test_runs")))
+raw_attention_inst.set_up_graph(num_head=1, heads_concat=False, test_mod=True)
+fig = raw_attention_inst.draw_attention_graph()
+plt.savefig(os.path.join(plots_folder, 'attention_test_runs', 'test_graph_head_1.png'))
 
-graph_folder = path.join(path.join(plots_folder, "attention_test_runs"))
 
-g = create_attention_graph(attention_tensors, heads_concat=False, num_head=0)
-g, fig = draw_attention_graph(g, labels, n_layers=12, tokens=tokens, graph_width=25)
-plt.savefig(os.path.join(graph_folder, 'attention_graph_head_1.png'))
-
-data_set = SnliDataset(nb_sentences=32, msg=False)
-data_loader = DataLoader(data_set, batch_size=32, shuffle=False)
+# load a whole batch
+data_set = SnliDataset(nb_sentences=1, msg=False)
+data_loader = DataLoader(data_set, batch_size=1, shuffle=False)
 
 sentences, masks, train_labels = next(iter(data_loader))
-map = attention_confidence(model, sentences, masks)
 
-fig = plot_confidence(map)
-plt.savefig(os.path.join(graph_folder, 'confidence_map.png'))
+heads_role_inst = HeadsRole(sentences, masks)
+heads_role_inst.attention_confidence(model)
+fig = heads_role_inst.plot_confidence()
+plt.savefig(os.path.join(plots_folder, 'attention_test_runs', 'test_confidence_map.png'))
+
