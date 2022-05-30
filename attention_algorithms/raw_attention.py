@@ -123,6 +123,7 @@ class RawAttention:
         self.attention_graph = None
         self.set_gr = False
 
+    # print and have some informations about the attention structure !
     def __str__(self):
         result = ""
         result += f">> the tokens : {self.tokens}" + "\n"
