@@ -5,6 +5,7 @@ from transformers import BertTokenizer
 import networkx as nx
 import matplotlib.pyplot as plt
 import seaborn as sns
+import warnings
 
 sns.set_theme()
 
@@ -52,6 +53,21 @@ def hightlight_txt(tokens, attention, show_pad=False):
 ## define it as a class will help us to regroup some technics
 ##############################################
 
+# some exceptions for the class
+# this will help us to make the different steps in the good order
+
+class HeadsAgregationError(Exception):
+    pass
+
+
+class AdjMatrixError(Exception):
+    pass
+
+
+class NoneItemError(Exception):
+    pass
+
+
 class RawAttention:
     def __init__(self, model, input_ids, attention_mask, test_mod=True,
                  *args, **kwargs):
@@ -96,15 +112,39 @@ class RawAttention:
             else:
                 print("x")
         ## >> end test
-
+        self.heads_agr = False  # did we proceed the heads agregation
         self.att_tens_agr = None  # the tensor with heads agregation (which layer is significant)
         self.att_tens_lay_agr = None  # the tensor with layer agregation (which head is significant)
 
         # attention graph stuff
         self.adj_mat = None
+        self.adj_mat_done = False
         self.label = None
         self.attention_graph = None
         self.set_gr = False
+
+    def __str__(self):
+        result = ""
+        result += f">> the tokens : {self.tokens}" + "\n"
+        result += f">> graph set up : {self.set_gr}"+" "
+        if self.set_gr:
+            result += ">> ready for inference !"
+        else:
+            result += ">> NOT ready for inference !"
+        return result
+
+    # have a quick access to some things
+    def __getitem__(self, item):
+        if item == "attention_graph":
+            return self.attention_graph.copy()
+        elif item == "attention_tensor":
+            return self.attention_tensor.detach().clone()
+        elif item == "attention_tensor_agreg":
+            return self.att_tens_agr.detach().clone()
+        else:
+            raise NoneItemError(
+                "please select item in range [attention_graph, attention_tensor, attention_tensor_agreg]"
+            )
 
     ########################
     ### heads agregation ###
@@ -119,6 +159,14 @@ class RawAttention:
         :param heads_concat : if true we proceed head agregation (combination of the different heads)
         :param num_head : if we do not proceed any agregation, what head should we use
         """
+        self.heads_agr = True
+
+        if heads_concat:
+            if num_head > 0:
+                warnings.warn("The heads number is useless since you are want to proceed heads agregation")
+        else:
+            if num_head < 0 or num_head > 11:
+                raise HeadsAgregationError("the attention head you wan't to select doesn't exists !")
 
         if heads_concat:
             # TODO : heads agregation
@@ -132,21 +180,11 @@ class RawAttention:
     ### defining the graph tools ###
     ################################
 
-    def _create_adj_matrix(self,
-                           heads_concat: bool = True,
-                           num_head: int = -1,
-                           test_mod: bool = False,
-                           ):
-        """ Creation of the adjacency matrix for the attention graph
+    def _create_adj_matrix(self):
 
-        /!\ WARNING : the adj matrix has only sens for the heads agregation problem
+        if not self.heads_agr:
+            raise HeadsAgregationError("You can't create adj matrix without proceeding heads agregation")
 
-        :param heads_concat : concatenation or not of the heads
-        :param num_head : if we don't concat the heads, what head should we use
-        :param test_mod : proceed some tests to be sure about what we are doing the test mod can only be used
-        """
-
-        self.heads_agregation(num_head=num_head, heads_concat=heads_concat)
         length = len(self.tokens)
         n_layers, _, _ = self.att_tens_agr.shape  # number of attention heads
         self.adj_mat = np.zeros((n_layers * length, n_layers * length))
@@ -169,30 +207,7 @@ class RawAttention:
                         k_v = length * (i - 1) + v
                         self.adj_mat[k_u][k_v] = self.att_tens_agr[i][u][v]
 
-        # >> start the test
-        if test_mod:
-            if num_head < 0 or num_head > 11:
-                print("error : please choose a head for the test part")
-            else:
-                print("test passed : ", end="")
-                passed = True
-                # proceed the test
-                # we will see if the adjacency matrix contains the right values
-                # thanks to this we will be able to test the previous function also
-                for n in range(n_layers):
-                    if n > 0:
-                        for x in range(length):
-                            for y in range(length):
-                                if self.attention_tensor[0, n, num_head, x, y].detach().numpy() != self.adj_mat[ \
-                                        length * n + x, length * (n - 1) + y]:
-                                    passed = False
-                                    break
-
-                if passed:
-                    print(u'\u2713')
-                else:
-                    print("x")
-        # >> end the test
+        self.adj_mat_done = True
 
     def _create_attention_graph(self):
         """Creation of a networkx Digraph based on the adj_matrix.
@@ -202,6 +217,9 @@ class RawAttention:
         """
 
         # creation of the graph with the adjacency matrix.
+        if not self.adj_mat_done:
+            raise AdjMatrixError("You can't create graph without adj matrix")
+
         g = nx.from_numpy_matrix(self.adj_mat, create_using=nx.DiGraph())
 
         for i in np.arange(self.adj_mat.shape[0]):
@@ -211,24 +229,39 @@ class RawAttention:
         # the graph is also created to have capacities so we can perform max flow problem on it
         self.attention_graph = g.copy()
 
-    def set_up_graph(self, num_head, heads_concat, test_mod=False):
-        self._create_adj_matrix(heads_concat=heads_concat, num_head=num_head, test_mod=test_mod)
+    ########################################################
+    ## combine the previous functions to set up the graph ##
+    ########################################################
+    def set_up_graph(self, num_head, heads_concat):
+        """ The different step to set up the graph
+
+        - proceed the agregation of the heads
+        - create the adjacency matrix
+        - create the graph thanks to the matrix
+        """
+        self.heads_agregation(heads_concat=heads_concat,
+                              num_head=num_head)
+
+        self._create_adj_matrix()
         self._create_attention_graph()
 
         # the graph is now set up !
         self.set_gr = True
 
+    # create the figure
     def draw_attention_graph(self,
                              graph_width: int = 20,
                              n_layers: int = 12
-                             ) -> Union[nx.classes.digraph.DiGraph, matplotlib.figure.Figure]:
+                             ) -> matplotlib.figure.Figure:
         """ Draw the attention graph
 
         :param graph_width : the size of the final graph
         :param n_layers : number of multi-head-attention layer in the model (in bert it is 12)
         """
+
+        # deal with different warnings
         if not (self.set_gr):
-            print("/!\ WARNINNG : you didn't set up the graph so we proceed it")
+            warnings.warn("you didn't set up the graph so we proceed it with heads agregation")
             # we must find a way to concat the different heads
             self.set_up_graph(heads_concat=True)
 
@@ -270,3 +303,15 @@ class RawAttention:
                                    edge_color='darkred')
 
         return fig
+
+    def attention_heads_analysis(self,
+                                 num_head: int = -1,
+                                 heads_concat: bool = False
+                                 ):
+        """attention heads analysis
+
+        objective :
+            -set up all the attribute of the class to make the analysis of the attention
+            - the heads agregation
+            - the attention graph
+        """
