@@ -1,12 +1,15 @@
+#%% import
 import wget
 import zipfile
 from zipfile import ZipFile
 import os
 from os import path
+import pandas as pd
 
-# downloading the files
-print("start downloading")
 
+print("START")
+
+print("snli part begining : ")
 # first we set the direction of the git.
 cwd = os.getcwd().split(os.path.sep)
 while cwd[-1] != "stage_4_gm":
@@ -41,6 +44,26 @@ try:
         zip_ref.extractall(path.join(cache, 'raw_data', 'snli_data'))
     os.remove("snli_data.zip")
     os.remove("clean_snli_data.zip")
-    print("Finished !")
+    print(">> Finished for the snli part!")
 except FileNotFoundError:
     print("verify that all the files are present")
+
+
+# download the e-snli dataset
+# https://github.com/OanaMariaCamburu/e-SNLI/tree/master/dataset
+# folder where we will store the data
+e_snli_folder = path.join(".cache", "raw_data", "e_snli")
+if not path.exists(e_snli_folder):
+    os.mkdir(e_snli_folder)
+
+urls = [r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/dataset/esnli_train_1.csv",
+        r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/dataset/esnli_train_2.csv",
+        r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/dataset/esnli_test.csv",
+        r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/dataset/esnli_dev.csv"]
+
+for url in urls:
+    nm = url.split("/")[-1]
+    df = pd.read_csv(url)
+    df.to_csv(path.join(e_snli_folder, nm))
+
+
