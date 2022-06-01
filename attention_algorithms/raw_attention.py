@@ -69,6 +69,10 @@ class NoneItemError(Exception):
 
 
 class RawAttention:
+    """
+    # TODO : doc string of the class
+    """
+
     def __init__(self, model, input_ids, attention_mask, test_mod=True,
                  *args, **kwargs):
         # the base values
@@ -127,7 +131,7 @@ class RawAttention:
     def __str__(self):
         result = ""
         result += f">> the tokens : {self.tokens}" + "\n"
-        result += f">> graph set up : {self.set_gr}"+" "
+        result += f">> graph set up : {self.set_gr}" + " "
         if self.set_gr:
             result += ">> ready for inference !"
         else:
@@ -170,8 +174,20 @@ class RawAttention:
                 raise HeadsAgregationError("the attention head you wan't to select doesn't exists !")
 
         if heads_concat:
-            # TODO : heads agregation
-            pass
+            # the heads agregation >> mean of all the different heads
+            n_layer = self.attention_tensor.shape[1]
+            n_head = self.attention_tensor.shape[2]
+            self.att_tens_agr = np.zeros((n_layer, len(self.tokens), len(self.tokens)))
+            for i in range(n_layer):
+                #
+                buff = self.attention_tensor[0, i, :, :, :].detach().numpy()
+                # sum over all the heads
+                buff = buff.sum(axis=0)
+                # normalization
+                self.att_tens_agr[i] = buff / n_head
+            # transform into a torch tensor
+            self.att_tens_agr = torch.tensor(self.att_tens_agr)
+
         else:
             # clone just the tensor without the gradient
             # here the gradient is not usefull
@@ -233,7 +249,7 @@ class RawAttention:
     ########################################################
     ## combine the previous functions to set up the graph ##
     ########################################################
-    def set_up_graph(self, num_head, heads_concat):
+    def set_up_graph(self, num_head=-1, heads_concat=True):
         """ The different step to set up the graph
 
         - proceed the agregation of the heads
@@ -261,7 +277,7 @@ class RawAttention:
         """
 
         # deal with different warnings
-        if not (self.set_gr):
+        if not self.set_gr:
             warnings.warn("you didn't set up the graph so we proceed it with heads agregation")
             # we must find a way to concat the different heads
             self.set_up_graph(heads_concat=True)
@@ -304,15 +320,3 @@ class RawAttention:
                                    edge_color='darkred')
 
         return fig
-
-    def attention_heads_analysis(self,
-                                 num_head: int = -1,
-                                 heads_concat: bool = False
-                                 ):
-        """attention heads analysis
-
-        objective :
-            -set up all the attribute of the class to make the analysis of the attention
-            - the heads agregation
-            - the attention graph
-        """

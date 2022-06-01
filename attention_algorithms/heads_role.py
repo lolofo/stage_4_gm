@@ -11,6 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from attention_algorithms.raw_attention import RawAttention
+import seaborn as sns
+sns.set_theme()
 
 
 class HeadsRole:
@@ -58,11 +60,12 @@ class HeadsRole:
 
         self.confidence_map /= self.nb_sentences
 
+    # plot the confidence map in the form of an image
     def plot_confidence(self):
 
         fig = plt.figure(figsize=(10, 10))
 
-        plt.imshow(self.confidence_map, aspect='auto', cmap='Blues')
+        plt.imshow(self.confidence_map, aspect='auto', cmap='Greens')
         txt = "Confidence values"
         plt.title(txt)
         y_label_list = [str(i) for i in range(self.confidence_map.shape[0])]
