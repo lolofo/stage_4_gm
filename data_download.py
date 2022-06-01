@@ -9,7 +9,7 @@ import pandas as pd
 
 print("START")
 
-print("snli part begining : ")
+print("snli part begins : ")
 # first we set the direction of the git.
 cwd = os.getcwd().split(os.path.sep)
 while cwd[-1] != "stage_4_gm":
@@ -22,7 +22,7 @@ print()
 
 cache = path.join(os.getcwd(), '.cache')
 
-print("start unzip the files")
+print("\t>> start unzip the files")
 
 # first clean the zip files
 
@@ -44,14 +44,15 @@ try:
         zip_ref.extractall(path.join(cache, 'raw_data', 'snli_data'))
     os.remove("snli_data.zip")
     os.remove("clean_snli_data.zip")
-    print(">> Finished for the snli part!")
+    print("\t>> Finished for the snli part!")
 except FileNotFoundError:
-    print("verify that all the files are present")
+    print("\t>> verify that all the files are present")
 
-
-# download the e-snli dataset
+print()
+# download the e-snli dataset from the following git
 # https://github.com/OanaMariaCamburu/e-SNLI/tree/master/dataset
 # folder where we will store the data
+print("esnli part begins :")
 e_snli_folder = path.join(".cache", "raw_data", "e_snli")
 if not path.exists(e_snli_folder):
     os.mkdir(e_snli_folder)
@@ -65,5 +66,6 @@ for url in urls:
     nm = url.split("/")[-1]
     df = pd.read_csv(url)
     df.to_csv(path.join(e_snli_folder, nm))
+print("\t>> finished !")
 
 

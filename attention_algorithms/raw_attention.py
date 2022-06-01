@@ -8,9 +8,6 @@ import seaborn as sns
 import warnings
 
 sns.set_theme()
-
-from typing import Union
-
 # the tokenizer
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
@@ -233,7 +230,7 @@ class RawAttention:
         for the the layer agregation it has just no sens
         """
 
-        # creation of the graph with the adjacency matrix.
+        # creation of the graph from the adjacency matrix then :
         if not self.adj_mat_done:
             raise AdjMatrixError("You can't create graph without adj matrix")
 
