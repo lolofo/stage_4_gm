@@ -1,4 +1,3 @@
-#%% import
 import wget
 import zipfile
 from zipfile import ZipFile
