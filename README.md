@@ -59,17 +59,11 @@ conda activate nlp
 
 ### Download the data
 
-To download the snli data the command line is the following :
+To download the snli and e-snli data the command line is the following :
 
 ```commandline
 python data_download.py
 ```
-
-This command line will create the *.cache* folder and will save the txt data from the snli library into it. This folder
-will be really important this is the location where we will have all our data. In these textual datas we have :
-
-- in the training set we have 550152 sentences
-- in the test set we have 10000 sentences
 
 ### Pytorch lightning training script
 

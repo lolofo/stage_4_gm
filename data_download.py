@@ -61,6 +61,7 @@ urls = [r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/datas
         r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/dataset/esnli_test.csv",
         r"https://raw.githubusercontent.com/OanaMariaCamburu/e-SNLI/master/dataset/esnli_dev.csv"]
 
+print("\t>> download from the git rep : https://github.com/OanaMariaCamburu/e-SNLI/tree/master/dataset")
 for url in urls:
     nm = url.split("/")[-1]
     df = pd.read_csv(url)

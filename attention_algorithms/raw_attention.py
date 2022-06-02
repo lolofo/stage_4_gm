@@ -165,15 +165,17 @@ class RawAttention:
 
         if heads_concat:
             if num_head > 0:
-                warnings.warn("The heads number is useless since you are want to proceed heads agregation")
+                warnings.warn("The heads number is useless since you want to proceed heads agregation")
         else:
             if num_head < 0 or num_head > 11:
                 raise HeadsAgregationError("the attention head you wan't to select doesn't exists !")
 
         if heads_concat:
             # the heads agregation >> mean of all the different heads
+            # think about more technics to agregate the heads
             n_layer = self.attention_tensor.shape[1]
             n_head = self.attention_tensor.shape[2]
+            # one attention tensor per layer >> agregation of the heads
             self.att_tens_agr = np.zeros((n_layer, len(self.tokens), len(self.tokens)))
             for i in range(n_layer):
                 #
