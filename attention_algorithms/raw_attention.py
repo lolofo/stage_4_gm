@@ -183,7 +183,7 @@ class RawAttention:
                 # sum over all the heads
                 buff = buff.sum(axis=0)
                 # normalization
-                self.att_tens_agr[i] = buff / n_head
+                self.att_tens_agr[i] = buff.copy() / n_head
             # transform into a torch tensor
             self.att_tens_agr = torch.tensor(self.att_tens_agr)
 

@@ -10,7 +10,7 @@ def attention_flow_max(
     """ Find the flow max between the output and the input
     - we will only search for the flow max between the CLS token and the inputs tokens
     """
-    if not (raw_attention_inst.set_gr):
+    if not raw_attention_inst.set_gr:
         # set up the graph
         warnings.warn("The graph isn't set up we will then set it up")
         raw_attention_inst.set_up_graph()
