@@ -12,12 +12,54 @@ sns.set_theme()
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
 
-def hightlight_txt(tokens, attention, show_pad=False):
+# first we normalize our attention >> get a probability
+# this function will help us to construct the ROC curve
+def normalize_attention(tokens, attention):
+    assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
+
+    MAX_ALPHA = 0.8  # transparency
+    # modification of the normalize attention
+    # get access to the special tokens to put them to 0
+    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
+    buff = []
+    for i in range(len(attention)):
+        if tokens[i] not in SPECIAL_TOKENS:
+            buff.append(attention[i])
+        else:
+            buff.append(0)
+    buff = torch.tensor(buff)
+
+    highlighted_text = ''
+    w_min, w_max = torch.min(buff), torch.max(buff)
+
+    # In case of uniform: highlight all text
+    if w_min == w_max:
+        w_min = 0.
+
+    w_norm = (attention - w_min) / (w_max - w_min)
+    w_norm = [w / MAX_ALPHA for w in w_norm]
+
+    # modification of the normalize attention
+    # get access to the special tokens to put them to 0
+    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
+    buff = []
+    for i in range(len(attention)):
+        if tokens[i] not in SPECIAL_TOKENS:
+            buff.append(w_norm[i])
+        else:
+            buff.append(0)
+    w_norm = buff.copy()
+
+    return w_norm
+
+
+def hightlight_txt(tokens, attention, tr=0.5, show_pad=False):
     """
     Build an HTML of text along its weights.
     Args:
         tokens: list of tokens
         attention: list of attention weights
+        tr : the threshold to make our decision.
         show_pad: whethere showing padding tokens
     """
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
@@ -34,8 +76,21 @@ def hightlight_txt(tokens, attention, show_pad=False):
     w_norm = (attention - w_min) / (w_max - w_min)
     w_norm = [w / MAX_ALPHA for w in w_norm]
 
+    # modification of the normalize attention
+    # get access to the special tokens to put them to 0
+    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
+    buff = []
+    for i in range(len(attention)):
+        # 1 for the non special tokens that are greater than the threshold.
+        if w_norm[i] >= tr:
+            if tokens[i] not in SPECIAL_TOKENS:
+                buff.append(1)
+        else:
+            buff.append(0)
+    w_norm = buff.copy()
+
     if not show_pad:
-        id_non_pad = [i for i, tk in enumerate(tokens) if tk != '[pad]']
+        id_non_pad = [i for i, t in enumerate(tokens) if t != '[PAD]']
         w_norm = [w_norm[i] for i in id_non_pad]
         tokens = [tokens[i] for i in id_non_pad]
 
@@ -154,6 +209,7 @@ class RawAttention:
 
     def heads_agregation(self,
                          heads_concat: bool = True,
+                         agr_type="avg",
                          num_head: int = -1,
                          ):
         """ Agregation of the different attention heads
@@ -181,11 +237,18 @@ class RawAttention:
                 #
                 buff = self.attention_tensor[0, i, :, :, :].detach().numpy()
                 # sum over all the heads
-                buff = buff.sum(axis=0)
-                # normalization
-                self.att_tens_agr[i] = buff.copy() / n_head
+                if agr_type == "avg":
+                    buff = buff.sum(axis=0)
+                elif agr_type == "max":
+                    buff = buff.max(axis=0)
+                # normalization /!\ if we want the mean agregation
+                if agr_type == "avg":
+                    self.att_tens_agr[i] = buff.copy() / n_head
+                elif agr_type == "max":
+                    self.att_tens_agr[i] = buff.copy()
             # transform into a torch tensor
             self.att_tens_agr = torch.tensor(self.att_tens_agr)
+
 
         else:
             # clone just the tensor without the gradient
@@ -248,7 +311,7 @@ class RawAttention:
     ########################################################
     ## combine the previous functions to set up the graph ##
     ########################################################
-    def set_up_graph(self, num_head=-1, heads_concat=True):
+    def set_up_graph(self, num_head=-1, heads_concat=True, agr_type="avg"):
         """ The different step to set up the graph
 
         - proceed the agregation of the heads
@@ -256,7 +319,8 @@ class RawAttention:
         - create the graph thanks to the matrix
         """
         self.heads_agregation(heads_concat=heads_concat,
-                              num_head=num_head)
+                              num_head=num_head,
+                              agr_type=agr_type)
 
         self._create_adj_matrix()
         self._create_attention_graph()

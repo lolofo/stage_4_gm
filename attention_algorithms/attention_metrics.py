@@ -4,13 +4,11 @@ Implementation of a ROC curve for our problem
 import matplotlib.pyplot as plt
 import sklearn.metrics as metrics
 from sklearn.metrics import confusion_matrix
-
-
-
+import numpy as np
 
 # --> plot the roc_curve of the model
 def plot_roc_vurve(Y_test, probs):
-    preds = probs[:, 0]
+    preds = probs
     fpr, tpr, threshold = metrics.roc_curve(Y_test, preds)
     roc_auc = metrics.auc(fpr, tpr)
 
@@ -41,7 +39,7 @@ def highlight_cell(x, y, ax=None, **kwargs):
 
 # --> plot the confusion matrix
 def visu_conf_mat(Y_test, probs, tr):
-    preds = probs[:, 0]
+    preds = probs
 
     print("the thresholds selected : {}".format(tr))
     # some metrics
