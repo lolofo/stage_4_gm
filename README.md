@@ -41,7 +41,7 @@ pip install -r python_env/requirements.gpu.txt --no-cache-dir
 deactivate
 ```
 
-### Conda environment
+### Virtualenv - conda environment
 
 - if you are using conda you can use the two following command :
 
@@ -64,6 +64,9 @@ To download the snli and e-snli data the command line is the following :
 ```commandline
 python data_download.py
 ```
+
+All the data downloaded in this part will be stored in the folder : `.cache\raw_data` 
+
 
 ### Pytorch lightning training script
 
