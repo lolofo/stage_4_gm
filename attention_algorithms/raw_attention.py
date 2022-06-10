@@ -125,8 +125,10 @@ class RawAttention:
     # TODO : doc string of the class
     """
 
+    @torch.no_grad()
     def __init__(self, model, input_ids, attention_mask, test_mod=True,
                  *args, **kwargs):
+
         # the base values
         self.input_ids = input_ids
         self.attention_mask = attention_mask
@@ -206,7 +208,7 @@ class RawAttention:
     ########################
     ### heads agregation ###
     ########################
-
+    @torch.no_grad()
     def heads_agregation(self,
                          heads_concat: bool = True,
                          agr_type="avg",
@@ -239,13 +241,11 @@ class RawAttention:
                 # sum over all the heads
                 if agr_type == "avg":
                     buff = buff.sum(axis=0)
+                    self.att_tens_agr[i] = buff.copy() / n_head  # normalization
                 elif agr_type == "max":
                     buff = buff.max(axis=0)
-                # normalization /!\ if we want the mean agregation
-                if agr_type == "avg":
-                    self.att_tens_agr[i] = buff.copy() / n_head
-                elif agr_type == "max":
                     self.att_tens_agr[i] = buff.copy()
+
             # transform into a torch tensor
             self.att_tens_agr = torch.tensor(self.att_tens_agr)
 
@@ -258,7 +258,7 @@ class RawAttention:
     ################################
     ### defining the graph tools ###
     ################################
-
+    @torch.no_grad()
     def _create_adj_matrix(self):
 
         if not self.heads_agr:
@@ -266,12 +266,12 @@ class RawAttention:
 
         length = len(self.tokens)
         n_layers, _, _ = self.att_tens_agr.shape  # number of attention heads
-        self.adj_mat = np.zeros((n_layers * length, n_layers * length))
+        self.adj_mat = np.zeros(((n_layers+1) * length, (n_layers+1) * length))
 
         # the labels -> the name of each node to know where it is.
         self.label = {}
 
-        for i in range(n_layers):
+        for i in range(n_layers+1):
             if i == 0:
                 for u in range(length):
                     # input labels
@@ -284,7 +284,8 @@ class RawAttention:
                     self.label[buff] = k_u
                     for v in range(length):
                         k_v = length * (i - 1) + v
-                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i][u][v]
+                        # one the next line >> i-1 because of how we count the layers
+                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i-1][u][v]
 
         self.adj_mat_done = True
 
@@ -348,7 +349,7 @@ class RawAttention:
         pos = {}
         label_pos = {}
         length = len(self.tokens)
-        for i in np.arange(n_layers):
+        for i in np.arange(n_layers+1):
             for k_f in np.arange(length):
                 pos[i * length + k_f] = ((i + 0.4) * 2, length - k_f)
                 label_pos[i * length + k_f] = (i * 2, length - k_f)
