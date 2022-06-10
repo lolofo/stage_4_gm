@@ -4,8 +4,11 @@ Implementation of how to plot the ROC curve
 import matplotlib.pyplot as plt
 import sklearn.metrics as metrics
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
 from attention_algorithms.raw_attention import RawAttention
+from attention_algorithms.attention_flow import attention_flow_max
+from attention_algorithms.raw_attention import normalize_attention
 
 
 # --> plot the roc_curve of the model
@@ -86,7 +89,47 @@ def plot_color_map(raw_attention_inst: RawAttention,
     plt.ylabel('Tokens')
     ax = plt.gca()
     y_label_list = raw_attention_inst.tokens
-    x_label_list = [str(i) for i in range(map.shape[1]-1)]+['e_snli']
+    x_label_list = [str(i + 1) for i in range(map.shape[1] - 1)] + ['e_snli']
+
+    ax.set_xticks(range(map.shape[1]))
+    ax.set_yticks(range(map.shape[0]))
+
+    ax.set_xticklabels(x_label_list)
+    ax.set_yticklabels(y_label_list)
+
+    plt.grid()
+    plt.colorbar()
+
+    return fig
+
+
+def plot_flow_map(raw_attention_inst: RawAttention,
+                  e_snli_annotation: list,
+                  agr_type: str = "max"):
+    # first >> agregation of the different heads
+    raw_attention_inst.set_up_graph(heads_concat=True,
+                                    agr_type=agr_type,
+                                    num_head=-1)
+    n_layer, n_tokens, _ = raw_attention_inst.att_tens_agr.shape
+    map = np.zeros((n_tokens, n_layer + 1))
+
+    for j in range(n_layer):
+        flow = attention_flow_max(raw_attention_inst=raw_attention_inst,
+                                  out_layer=j + 1)
+        flow = normalize_attention(raw_attention_inst.tokens, torch.tensor(flow))
+
+        map[:, j] = flow
+
+    map[:, n_layer] = e_snli_annotation
+
+    fig = plt.figure(figsize=(10, 10))
+    plt.imshow(map, aspect='auto', cmap='Greens')
+    plt.title("maximum from the previous layer // against the e_snli annotation")
+    plt.xlabel('Layer')
+    plt.ylabel('Tokens')
+    ax = plt.gca()
+    y_label_list = raw_attention_inst.tokens
+    x_label_list = [str(i + 1) for i in range(map.shape[1] - 1)] + ['e_snli']
 
     ax.set_xticks(range(map.shape[1]))
     ax.set_yticks(range(map.shape[0]))

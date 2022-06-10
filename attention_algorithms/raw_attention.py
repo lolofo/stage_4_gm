@@ -24,8 +24,9 @@ def normalize_attention(tokens, attention):
     buff = []
     for i in range(len(attention)):
         if tokens[i] not in SPECIAL_TOKENS:
-            buff.append(attention[i])
+            buff.append(float(attention[i].detach()))
         else:
+            # the specials tokens will not help us
             buff.append(0)
     buff = torch.tensor(buff)
 
@@ -37,18 +38,6 @@ def normalize_attention(tokens, attention):
         w_min = 0.
 
     w_norm = (attention - w_min) / (w_max - w_min)
-    w_norm = [w / MAX_ALPHA for w in w_norm]
-
-    # modification of the normalize attention
-    # get access to the special tokens to put them to 0
-    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
-    buff = []
-    for i in range(len(attention)):
-        if tokens[i] not in SPECIAL_TOKENS:
-            buff.append(w_norm[i])
-        else:
-            buff.append(0)
-    w_norm = buff.copy()
 
     return w_norm
 
@@ -64,8 +53,6 @@ def hightlight_txt(tokens, attention, tr=0.5, show_pad=False):
     """
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
 
-    MAX_ALPHA = 0.8  # transparency
-
     highlighted_text = ''
     w_min, w_max = torch.min(attention), torch.max(attention)
 
@@ -74,7 +61,6 @@ def hightlight_txt(tokens, attention, tr=0.5, show_pad=False):
         w_min = 0.
 
     w_norm = (attention - w_min) / (w_max - w_min)
-    w_norm = [w / MAX_ALPHA for w in w_norm]
 
     # modification of the normalize attention
     # get access to the special tokens to put them to 0
