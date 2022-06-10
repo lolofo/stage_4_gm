@@ -6,7 +6,7 @@ from raw_attention import RawAttention
 
 def attention_flow_max(
         raw_attention_inst: RawAttention,
-        out_layer: int = 11):
+        out_layer: int = 12):
     """ Find the flow max between the output and the input
     - we will only search for the flow max between the CLS token and the inputs tokens
     """
