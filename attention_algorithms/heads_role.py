@@ -46,7 +46,7 @@ class HeadsRole:
         :param n_layers : number of layers in the model we are using
         :param n_head : number of attention head in the model
         """
-        for _, i in enumerate(tqdm.tqdm(range(self.nb_sentences))):
+        for _, i in enumerate(tqdm(range(self.nb_sentences))):
             # proceed sentence by sentence because every sentence has a different length
             ids, msk = torch.tensor([self.input_ids[i, :].detach().numpy()]), \
                        torch.tensor([self.attention_mask[i, :].detach().numpy()])

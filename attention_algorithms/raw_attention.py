@@ -226,11 +226,14 @@ class RawAttention:
                          heads_concat: bool = True,
                          agr_type="avg",
                          num_head: int = -1,
+                         prune_mask=None
                          ):
         """ Agregation of the different attention heads
 
         :param heads_concat : if true we proceed head agregation (combination of the different heads)
+        :param agr_type : what agregation should we proceed
         :param num_head : if we do not proceed any agregation, what head should we use
+        :param prune_mask: this mask will contain on every position what head are usefull
         """
         self.heads_agr = True
 
@@ -242,19 +245,29 @@ class RawAttention:
                 raise HeadsAgregationError("the attention head you wan't to select doesn't exists !")
 
         if heads_concat:
-            # the heads agregation >> mean of all the different heads
-            # think about more technics to agregate the heads
+            # proceed the head agregation
             n_layer = self.attention_tensor.shape[1]
             n_head = self.attention_tensor.shape[2]
             # one attention tensor per layer >> agregation of the heads
             self.att_tens_agr = np.zeros((n_layer, len(self.tokens), len(self.tokens)))
             for i in range(n_layer):
                 #
-                buff = self.attention_tensor[0, i, :, :, :].detach().numpy()
+                buff = self.attention_tensor[0, i, :, :, :].detach().clone().numpy()
                 # sum over all the heads
                 if agr_type == "avg":
-                    buff = buff.sum(axis=0)
-                    self.att_tens_agr[i] = buff.copy() / n_head  # normalization
+                    if prune_mask is not None:
+                        # mask for the layer
+                        buff_mask = prune_mask[i, :]  # the mask of the pruned layers
+                        den = buff_mask.sum()  # number of pruned heads in this layer
+
+                        # TODO : make this part faster than a iteration through the heads
+                        for h in range(n_head):
+                            buff[h, :, :] *= buff_mask[h]  # set to 0 the pruned heads
+                        buff = buff.sum(axis=0)  # sum the value
+                        self.att_tens_agr[i] = buff.copy() / den  # divide by the number of non-pruned heads
+                    else:
+                        buff = buff.sum(axis=0)
+                        self.att_tens_agr[i] = buff.copy() / n_head  # normalization
                 elif agr_type == "max":
                     buff = buff.max(axis=0)
                     self.att_tens_agr[i] = buff.copy()
@@ -325,7 +338,7 @@ class RawAttention:
     ########################################################
     ## combine the previous functions to set up the graph ##
     ########################################################
-    def set_up_graph(self, num_head=-1, heads_concat=True, agr_type="avg"):
+    def set_up_graph(self, num_head=-1, heads_concat=True, agr_type="avg", prune_mask=None):
         """ The different step to set up the graph
 
         - proceed the agregation of the heads
@@ -334,7 +347,8 @@ class RawAttention:
         """
         self.heads_agregation(heads_concat=heads_concat,
                               num_head=num_head,
-                              agr_type=agr_type)
+                              agr_type=agr_type,
+                              prune_mask=prune_mask)
 
         self._create_adj_matrix()
         self._create_attention_graph()
