@@ -17,29 +17,24 @@ tk = BertTokenizer.from_pretrained('bert-base-uncased')
 def normalize_attention(tokens, attention):
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
 
-    MAX_ALPHA = 0.8  # transparency
-    # modification of the normalize attention
-    # get access to the special tokens to put them to 0
-    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
-    buff = []
-    for i in range(len(attention)):
-        if tokens[i] not in SPECIAL_TOKENS:
-            buff.append(float(attention[i].detach()))
-        else:
-            # the specials tokens will not help us
-            buff.append(0)
-    buff = torch.tensor(buff)
-
-    highlighted_text = ''
-    w_min, w_max = torch.min(buff), torch.max(buff)
+    w_min, w_max = torch.min(attention), torch.max(attention)
 
     # In case of uniform: highlight all text
     if w_min == w_max:
         w_min = 0.
-
     w_norm = (attention - w_min) / (w_max - w_min)
 
-    return w_norm
+    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
+    buff = []
+    for i in range(len(attention)):
+        if tokens[i] not in SPECIAL_TOKENS:
+            buff.append(float(w_norm[i].detach().numpy()))
+        else:
+            # we now that there will be no attention on the special tokens
+            buff.append(0)
+    buff = torch.tensor(buff)
+
+    return buff
 
 
 def hightlight_txt(tokens, attention, tr=0.5, show_pad=False):
@@ -107,8 +102,40 @@ class NoneItemError(Exception):
 
 
 class RawAttention:
-    """
-    # TODO : doc string of the class
+    """ RawAttention
+
+    Attributes
+    ----------
+
+    input_ids : torch.tensor
+        the ids of the sentence
+
+    attention_mask : torch.tensor
+        the attention mask of the sentence (to spot the [PAD] tokens)
+
+    tokens : list<str>
+        list of the tokens in the sentence (each token is a string)
+
+    attention_tensor : torch.tensor
+        the attention for the model, it is a torch tensor of the shape (1, n_layer, n_head, n_tokens, n_tokens)
+
+    att_tens_agr : torch.tensor
+        the attention tensor after that the heads were agregated
+        shape : (n_layer, n_tokens, n_tokens)
+
+    adj_mat : np.array
+        the adjacency matrix for the attention graph built on the att_tens_agr
+        shape : ((n_layer+1)*n_tokens, (n_layer+1)*n_tokens)
+
+    attention_graph : nx.Digraph
+        the attention graph representing all the connections between the words from one layer to another.
+
+
+    Methods
+    -------
+
+
+
     """
 
     @torch.no_grad()
@@ -252,12 +279,12 @@ class RawAttention:
 
         length = len(self.tokens)
         n_layers, _, _ = self.att_tens_agr.shape  # number of attention heads
-        self.adj_mat = np.zeros(((n_layers+1) * length, (n_layers+1) * length))
+        self.adj_mat = np.zeros(((n_layers + 1) * length, (n_layers + 1) * length))
 
         # the labels -> the name of each node to know where it is.
         self.label = {}
 
-        for i in range(n_layers+1):
+        for i in range(n_layers + 1):
             if i == 0:
                 for u in range(length):
                     # input labels
@@ -271,7 +298,7 @@ class RawAttention:
                     for v in range(length):
                         k_v = length * (i - 1) + v
                         # one the next line >> i-1 because of how we count the layers
-                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i-1][u][v]
+                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i - 1][u][v]
 
         self.adj_mat_done = True
 
@@ -335,7 +362,7 @@ class RawAttention:
         pos = {}
         label_pos = {}
         length = len(self.tokens)
-        for i in np.arange(n_layers+1):
+        for i in np.arange(n_layers + 1):
             for k_f in np.arange(length):
                 pos[i * length + k_f] = ((i + 0.4) * 2, length - k_f)
                 label_pos[i * length + k_f] = (i * 2, length - k_f)
