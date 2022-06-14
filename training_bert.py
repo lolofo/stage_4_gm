@@ -330,8 +330,6 @@ if __name__ == '__main__':
     dm.setup(stage='fit')
     trainer.fit(model, datamodule=dm)
 
-    # print(trainer.logged_metrics) # Duc: Je ne pense pas necessaire
-
     dm.setup(stage='test')
     performance = trainer.test(
         ckpt_path='best',

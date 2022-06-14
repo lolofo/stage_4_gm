@@ -8,8 +8,12 @@ import seaborn as sns
 import warnings
 
 sns.set_theme()
+
 # the tokenizer
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
+
+# the special tokens of our tokenizer
+SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
 
 
 # first we normalize our attention >> get a probability
@@ -24,13 +28,28 @@ def normalize_attention(tokens, attention):
         w_min = 0.
     w_norm = (attention - w_min) / (w_max - w_min)
 
-    SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
     buff = []
     for i in range(len(attention)):
         if tokens[i] not in SPECIAL_TOKENS:
             buff.append(float(w_norm[i].detach().numpy()))
         else:
             # we now that there will be no attention on the special tokens
+            buff.append(0)
+    buff = torch.tensor(buff)
+
+    return buff
+
+
+def softmax_normalization(tokens, attention: torch.tensor):
+    assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
+    sft_max_norm = torch.nn.Softmax(dim=0)
+    w_norm = sft_max_norm(attention)
+
+    buff = []
+    for i in range(len(attention)):
+        if tokens[i] not in SPECIAL_TOKENS:
+            buff.append(float(w_norm[i].detach().numpy()))
+        else:
             buff.append(0)
     buff = torch.tensor(buff)
 
