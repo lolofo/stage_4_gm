@@ -1,7 +1,7 @@
 import networkx as nx
 import warnings
 
-from raw_attention import RawAttention
+from attention_algorithms.raw_attention import RawAttention
 
 
 def attention_flow_max(
