@@ -56,37 +56,39 @@ def softmax_normalization(tokens, attention: torch.tensor):
     return buff
 
 
-def hightlight_txt(tokens, attention, tr=0.5, show_pad=False):
+def hightlight_txt(tokens, attention, e_snli_hg, show_pad=False):
     """
     Build an HTML of text along its weights.
     Args:
         tokens: list of tokens
         attention: list of attention weights
-        tr : the threshold to make our decision.
         show_pad: whethere showing padding tokens
     """
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
 
     highlighted_text = ''
+
+    # >> normalization
     w_min, w_max = torch.min(attention), torch.max(attention)
+
+    MAX_ALPHA = 0.1
 
     # In case of uniform: highlight all text
     if w_min == w_max:
         w_min = 0.
 
     w_norm = (attention - w_min) / (w_max - w_min)
+    w_norm /= MAX_ALPHA
 
-    # modification of the normalize attention
-    # get access to the special tokens to put them to 0
+    # >> Special tokens >> 0 attention
     SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
     buff = []
     for i in range(len(attention)):
-        # 1 for the non special tokens that are greater than the threshold.
-        if w_norm[i] >= tr:
-            if tokens[i] not in SPECIAL_TOKENS:
-                buff.append(1)
+        if tokens[i] not in SPECIAL_TOKENS:
+            buff.append(w_norm[i])
         else:
             buff.append(0)
+
     w_norm = buff.copy()
 
     if not show_pad:
@@ -94,10 +96,17 @@ def hightlight_txt(tokens, attention, tr=0.5, show_pad=False):
         w_norm = [w_norm[i] for i in id_non_pad]
         tokens = [tokens[i] for i in id_non_pad]
 
-    highlighted_text = [f'<span style="background-color:rgba(135,206,250, {weight});">{text}</span>' for weight, text in
-                        zip(w_norm, tokens)]
+    highlighted_text_1 = [f'<span style="background-color:rgba(135,206,250, {weight});">{text}</span>' for weight, text
+                          in
+                          zip(w_norm, tokens)]
 
-    return ' '.join(highlighted_text)
+    sep = [f"<br>"]
+
+    highlighted_text_2 = [f'<span style="background-color:rgba(135,206,250, {weight});">{text}</span>' for weight, text
+                          in
+                          zip(e_snli_hg, tokens)]
+
+    return ' '.join(highlighted_text_1+sep+highlighted_text_2)
 
 
 ##############################################

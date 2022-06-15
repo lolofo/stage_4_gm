@@ -12,7 +12,7 @@ from attention_algorithms.raw_attention import normalize_attention
 
 
 # --> plot the roc_curve of the model
-def plot_roc_vurve(Y_test, probs):
+def plot_roc_curve(Y_test, probs):
     preds = probs
     fpr, tpr, threshold = metrics.roc_curve(Y_test, preds)
     roc_auc = metrics.auc(fpr, tpr)
@@ -35,7 +35,7 @@ def plot_roc_vurve(Y_test, probs):
     return fig, best_tr
 
 
-def combine_roc_ruves(Y_test, probs,
+def combine_roc_curves(Y_test, probs,
                       legend=["max_agreg", "avg_agreg"]):
     fig = plt.figure(figsize=(10, 10))
     plt.title('ROC CURVE')
