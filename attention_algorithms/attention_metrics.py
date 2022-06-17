@@ -36,7 +36,7 @@ def plot_roc_curve(Y_test, probs):
 
 
 def combine_roc_curves(Y_test, probs,
-                      legend=["max_agreg", "avg_agreg"]):
+                       legend=["max_agreg", "avg_agreg"]):
     fig = plt.figure(figsize=(10, 10))
     plt.title('ROC CURVE')
     plt.plot([0, 1], [0, 1], 'r--', label="random classifier")
@@ -65,77 +65,40 @@ def highlight_cell(x, y, ax=None, **kwargs):
     return rect
 
 
-def plot_color_map(raw_attention_inst: RawAttention,
-                   e_snli_annotation: list,
-                   agr_type: str = "max"):
-    # first >> agregation of the different heads
-    raw_attention_inst.heads_agregation(heads_concat=True,
-                                        agr_type=agr_type,
-                                        num_head=-1)
-    n_layer, n_tokens, _ = raw_attention_inst.att_tens_agr.shape
-    map = np.zeros((n_tokens, n_layer + 1))
-
-    for j in range(n_layer):
-        buff = raw_attention_inst.att_tens_agr.detach().clone()
-        for i in range(n_tokens):
-            map[i, j] = buff[j, i, :].detach().numpy().max()
-
-    map[:, n_layer] = e_snli_annotation
-
-    fig = plt.figure(figsize=(10, 10))
-    plt.imshow(map, aspect='auto', cmap='Greens')
-    plt.title("maximum from the previous layer // against the e_snli annotation")
-    plt.xlabel('Layer')
-    plt.ylabel('Tokens')
+def default_plot_colormap(map,
+                          xlabel, ylabel, title,
+                          xstick=None,
+                          sz=(10, 10)):
+    # the global figure
+    fig = plt.figure(figsize=sz)
+    plt.imshow(map, aspect='auto', cmap='Purples')
+    plt.title(title)
     ax = plt.gca()
-    y_label_list = raw_attention_inst.tokens
-    x_label_list = [str(i + 1) for i in range(map.shape[1] - 1)] + ['e_snli']
 
+    # the x-axis
+    plt.xlabel(xlabel)
     ax.set_xticks(range(map.shape[1]))
-    ax.set_yticks(range(map.shape[0]))
+    if xstick is None:
+        x_label_list = [str(i) for i in range(map.shape[1])]
+        ax.set_xticklabels(x_label_list)
+    else:
+        ax.set_xticklabels(xstick)
 
-    ax.set_xticklabels(x_label_list)
+    # the y-axis
+    plt.ylabel(ylabel)
+    ax.set_yticks(range(map.shape[0]))
+    y_label_list = [str(i + 1) for i in range(map.shape[0])]
     ax.set_yticklabels(y_label_list)
 
-    plt.grid()
-    plt.colorbar()
-
-    return fig
-
-
-def plot_flow_map(raw_attention_inst: RawAttention,
-                  e_snli_annotation: list,
-                  agr_type: str = "max"):
-    # first >> agregation of the different heads
-    raw_attention_inst.set_up_graph(heads_concat=True,
-                                    agr_type=agr_type,
-                                    num_head=-1)
-    n_layer, n_tokens, _ = raw_attention_inst.att_tens_agr.shape
-    map = np.zeros((n_tokens, n_layer + 1))
-
-    for j in range(n_layer):
-        flow = attention_flow_max(raw_attention_inst=raw_attention_inst,
-                                  out_layer=j + 1)
-        flow = normalize_attention(raw_attention_inst.tokens, torch.tensor(flow))
-
-        map[:, j] = flow
-
-    map[:, n_layer] = e_snli_annotation
-
-    fig = plt.figure(figsize=(10, 10))
-    plt.imshow(map, aspect='auto', cmap='Greens')
-    plt.title("maximum from the previous layer // against the e_snli annotation")
-    plt.xlabel('Layer')
-    plt.ylabel('Tokens')
-    ax = plt.gca()
-    y_label_list = raw_attention_inst.tokens
-    x_label_list = [str(i + 1) for i in range(map.shape[1] - 1)] + ['e_snli']
-
-    ax.set_xticks(range(map.shape[1]))
-    ax.set_yticks(range(map.shape[0]))
-
-    ax.set_xticklabels(x_label_list)
-    ax.set_yticklabels(y_label_list)
+    # for each cell
+    for x_index in range(map.shape[1]):
+        for y_index in range(map.shape[0]):
+            label = None
+            if type(map[y_index, x_index]) == np.bool_:
+                label = str(map[y_index, x_index])
+            else:
+                label = str(np.round(map[y_index, x_index], 3))
+            ax.text(x_index, y_index, label, color='black', ha='center', va='center')
 
     plt.grid()
     plt.colorbar()

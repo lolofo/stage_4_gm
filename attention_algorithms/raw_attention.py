@@ -102,6 +102,7 @@ def hightlight_txt(tokens, attention, e_snli_hg, show_pad=False):
 
     sep = [f"<br>"]
 
+
     highlighted_text_2 = [f'<span style="background-color:rgba(135,206,250, {weight});">{text}</span>' for weight, text
                           in
                           zip(e_snli_hg, tokens)]
