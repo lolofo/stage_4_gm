@@ -292,7 +292,7 @@ def attention_score(sentences, masks,
 # problem impossible to use the torch metric
 # we don't have the same treshold for our sentences
 
-from torchmetrics.functional import precision_recall
+from sklearn.metrics import precision_score
 
 
 def precision_recall_map(sentences, masks,
@@ -300,10 +300,9 @@ def precision_recall_map(sentences, masks,
                          TR_q,
                          model):
     m = np.zeros((12, 12))
-
-    pur_attention, Y_test, quantiles = attention_score(sentences, masks,
-                                                       e_snli_data,
-                                                       model,
+    pur_attention, Y_test, quantiles = attention_score(sentences=sentences, masks=masks,
+                                                       e_snli_data=e_snli_data,
+                                                       model=model,
                                                        TR_q=TR_q,
                                                        quantiles_calc=True)
 
@@ -311,8 +310,9 @@ def precision_recall_map(sentences, masks,
 
     for l in range(12):
         for h in range(12):
-            preds = np.array(pur_attention[f"layer_{l}"][f"head_{h}"] >= quantiles[f"layer_{l}"][f"head_{h}"],
-                             dtype=np.uint8)
+            preds = np.array(np.array(pur_attention[f"layer_{l}"][f"head_{h}"]) >= \
+                             np.array(quantiles[f"layer_{l}"][f"head_{h}"]),
+                             dtype=int)
 
-            m[l, h] = sum(preds * Y_test) / sum(preds)
+            m[l, h] = precision_score(Y_test, preds)
     return pur_attention, m

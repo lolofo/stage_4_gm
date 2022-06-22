@@ -57,7 +57,7 @@ def construct_html_page_visu(title,
         open(os.path.join(".cache", "plots", file_name), "a").close()
 
     html_page = f"<!DOCTYPE html> <html> <head> <title>{title}</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-    style_page ="""<style>
+    style_page = """<style>
     table {
       border-collapse: collapse;
       border-spacing: 0;
