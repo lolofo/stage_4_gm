@@ -36,6 +36,8 @@ oh_labels = {'entailment': "[1,0,0]",
              'contradiction': "[0,1,0]",
              'neutral': "[0,0,1]"}
 
+LABELS = ["entailement",  "contradiction", "neutral"]
+
 
 class SnliDataset(Dataset):
     '''

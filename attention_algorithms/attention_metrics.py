@@ -38,8 +38,10 @@ def normalize_attention(tokens, attention):
 
 
 # --> make a softmax normalization of the attention weights
+#     not really good because we have a normalization and it sums to one for a sentence.
 def softmax_normalization(tokens, attention: torch.tensor):
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
+
     sft_max_norm = torch.nn.Softmax(dim=0)
     w_norm = sft_max_norm(attention)
 
@@ -220,7 +222,6 @@ def attention_score(sentences, masks,
             pur_attention[f"layer_{i}"][f"head_{j}"] = []
             quantiles[f"layer_{i}"][f"head_{j}"] = []
 
-    # TODO update this part to have something more adaptively
     nb_it = sentences.shape[0]
     print(f">> start the calculus for {nb_it} sentences")
     for _, i in enumerate(tqdm.tqdm(range(nb_it))):
