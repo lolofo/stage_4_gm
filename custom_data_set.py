@@ -36,6 +36,7 @@ oh_labels = {'entailment': "[1,0,0]",
              'contradiction': "[0,1,0]",
              'neutral': "[0,0,1]"}
 
+# the order of the labels
 LABELS = ["entailement",  "contradiction", "neutral"]
 
 
@@ -63,11 +64,7 @@ class SnliDataset(Dataset):
         labels = []
 
         for i in range(nb_sent):
-            '''
-            we have a problem with some sentences
-            raise an exception --> catch it. It is because of NaN values.
-                                                we don't pay attention to these values.
-            '''
+
             try:
 
                 sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
@@ -95,21 +92,10 @@ class SnliDataset(Dataset):
         self.labels = buff.replace(oh_labels).apply(eval).values
 
     def __len__(self):
-        '''
-        return the length of the dataset
-        '''
+
         return len(self.labels)
 
     def __getitem__(self, idx):
-
-        '''
-        will return the the input and the output at the given index.
-        Thanks to this we will be able
-        '''
-
-        '''
-        we must return all as a torch tensor
-        '''
 
         ids = torch.tensor(self.ids[idx])
         att = torch.tensor(self.attention_mask[idx])

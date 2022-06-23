@@ -125,6 +125,9 @@ def auc_html_page(model,
     # >> where we will store the annotation
     annotations = []
 
+    count_acc = 0
+    num = 0
+
     for i in range(sentences.shape[0]):
         # >> init of the dictionary
         buff_dict = {
@@ -196,6 +199,11 @@ def auc_html_page(model,
 
             buff_dict["REAL LAB"] = e_snli_data["label"][j]
 
+            # calculation of the accuracy
+            count_acc += 1
+            if LABELS[pred] == e_snli_data["label"][j]:
+                num += 1
+
             annotations.append(buff_dict)
         except Exception as e:
             print(e)
@@ -204,7 +212,8 @@ def auc_html_page(model,
                                  annotations)
     U, p = mannwhitneyu(x, y)
 
-    paragraph = """
+    paragraph = f"""
+    - The accuracy of the model on the following sentences : {num / count_acc} <br>
     We will do the Wilcoxon-Mann-Whitney test between the last two columns of the table below to see if there is
     a (significant) difference between the last two columns. <br>
     """
