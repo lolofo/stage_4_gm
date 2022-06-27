@@ -18,21 +18,21 @@ import tqdm
 def normalize_attention(tokens, attention):
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
 
-    w_min, w_max = torch.min(attention), torch.max(attention)
-
-    # In case of uniform: highlight all text
-    if w_min == w_max:
-        w_min = 0.
-    w_norm = (attention - w_min) / (w_max - w_min)
-
     buff = []
     for i in range(len(attention)):
         if tokens[i] not in SPECIAL_TOKENS:
-            buff.append(float(w_norm[i].detach().numpy()))
+            buff.append(float(attention[i].detach().numpy()))
         else:
             # we now that there will be no attention on the special tokens
             buff.append(0)
     buff = torch.tensor(buff)
+
+    w_min, w_max = torch.min(buff), torch.max(buff)
+
+    # In case of uniform: we do the normalization and after we delete the special tokens
+    if w_min == w_max:
+        w_min = 0.
+    buff = (buff - w_min) / (w_max - w_min)
 
     return buff
 
@@ -167,7 +167,6 @@ def combine_roc_curves(Y_test, probs,
         plt.legend(loc='lower right', prop={'size': 10})
 
     return fig
-
 
 ########################
 ### end of AUC study ###
@@ -317,3 +316,195 @@ def precision_recall_map(sentences, masks,
 
             m[l, h] = precision_score(Y_test, preds)
     return pur_attention, m
+
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+#############################
+### Cross attention Study ###
+#############################
+
+def construct_cross_mask(mask, sep_idx):
+    buff = mask.copy()
+    for i in range(mask.shape[0]):
+        for j in range(mask.shape[1]):
+            if i < sep_idx < j:
+                buff[i, j] = 1
+
+            if i > sep_idx > j:
+                buff[i, j] = 1
+    return buff
+
+
+def cross_attention_score(sentences, masks,
+                          e_snli_data,
+                          model):
+    """ attention_score function
+
+    :param sentences: the tokenized sentences
+    :param masks: attention masks for the sentences
+    :param e_snli_data: dataframe for the annotation
+    :param model: snli type bert model
+
+    return the attention map as a dictionnary, and the e-snli annotation value
+    """
+    Y_test = []
+    nb_err = 0
+    # where we will store the attention
+    pur_attention = {}
+
+    # the quantiles vector for our threshold
+    quantiles = {}
+
+    for i in range(12):
+        pur_attention[f"layer_{i}"] = {}
+        quantiles[f"layer_{i}"] = {}
+        for j in range(12):
+            pur_attention[f"layer_{i}"][f"head_{j}"] = []
+            quantiles[f"layer_{i}"][f"head_{j}"] = []
+
+    nb_it = sentences.shape[0]
+    print(f">> start the calculus for {nb_it} sentences")
+    for _, i in enumerate(tqdm.tqdm(range(nb_it))):
+        j = 0
+        # iteration through all the sentences
+        # construct the raw attention object
+        sent = sentences[i, :].clone().detach()[None, :]
+        mk = masks[i, :].clone().detach()[None, :]
+        raw_attention_inst = RawAttention(model=model,
+                                          input_ids=sent,
+                                          attention_mask=mk,
+                                          test_mod=False
+                                          )
+
+        # find the e-snli sentence that corresponds to our problem
+        try:
+            while j < e_snli_data.shape[0] and raw_attention_inst.tokens != eval(e_snli_data["tok_sent"][j]):
+                j += 1
+
+            if j >= e_snli_data.shape[0]:
+                raise LenException
+
+            if raw_attention_inst.tokens != eval(e_snli_data["tok_sent"][j]):
+                raise LenException
+
+            else:
+                # once the sentence is found >> add the e-snli annotation
+                Y_test += eval(e_snli_data["hg_goal"][j])
+
+                AS_lh_s = np.zeros(len(raw_attention_inst.tokens))
+
+                # >> where do we have the token [SEP]
+                sep_pos = raw_attention_inst.tokens.index("[SEP]")
+                cross_mask = np.zeros((len(raw_attention_inst.tokens), len(raw_attention_inst.tokens)))
+                cross_mask = construct_cross_mask(cross_mask, sep_pos)
+
+                for l in range(12):
+                    for h in range(12):
+                        mat = torch.tensor(raw_attention_inst.attention_tensor[0, l, h, :, :] \
+                                           .detach().numpy() * cross_mask)
+                        # make the sum on the column >> agregation of the weights
+                        # >> dim=0 >> we reduce the number of lines
+                        b = mat.sum(dim=0)
+                        # >> remove the special tokens
+                        # >> normalize the attention
+                        b = normalize_attention(raw_attention_inst.tokens, b)
+                        # >> add the attention
+                        pur_attention[f"layer_{l}"][f"head_{h}"] += list(b.detach().numpy())
+
+        except LenException:
+            # count the different errors
+            nb_err += 1
+
+    # >> the errors are for the sentences we didn't found in the snli dataset
+    print(f">> nb_errors : {nb_err}")
+
+    # how many labeled example do we have
+    print(f">> len Y_test : {len(Y_test)}")
+
+    # return the two objects to calculate the metric for each head.
+    return pur_attention, Y_test, quantiles
+
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+#################
+### CLS study ###
+#################
+
+
+def cls_attention_score(sentences, masks,
+                        e_snli_data,
+                        model):
+    """ attention_score function
+
+    :param sentences: the tokenized sentences
+    :param masks: attention masks for the sentences
+    :param e_snli_data: dataframe for the annotation
+    :param model: snli type bert model
+    :param TR_q: the quantile we should consider for the threshold
+    :param quantiles_calc: should we calculate the different thresold
+
+    return the attention map as a dictionnary, and the e-snli annotation value
+    """
+    Y_test = []
+    nb_err = 0
+    # where we will store the attention
+    pur_attention = {}
+
+    # the quantiles vector for our threshold
+    quantiles = {}
+
+    for i in range(12):
+        pur_attention[f"layer_{i}"] = {}
+        quantiles[f"layer_{i}"] = {}
+        for j in range(12):
+            pur_attention[f"layer_{i}"][f"head_{j}"] = []
+            quantiles[f"layer_{i}"][f"head_{j}"] = []
+
+    nb_it = sentences.shape[0]
+    print(f">> start the calculus for {nb_it} sentences")
+    for _, i in enumerate(tqdm.tqdm(range(nb_it))):
+        j = 0
+        # iteration through all the sentences
+        # construct the raw attention object
+        sent = sentences[i, :].clone().detach()[None, :]
+        mk = masks[i, :].clone().detach()[None, :]
+        raw_attention_inst = RawAttention(model=model,
+                                          input_ids=sent,
+                                          attention_mask=mk,
+                                          test_mod=False
+                                          )
+
+        # find the e-snli sentence that corresponds to our problem
+        try:
+            while j < e_snli_data.shape[0] and raw_attention_inst.tokens != eval(e_snli_data["tok_sent"][j]):
+                j += 1
+
+            if j >= e_snli_data.shape[0]:
+                raise LenException
+
+            if raw_attention_inst.tokens != eval(e_snli_data["tok_sent"][j]):
+                raise LenException
+
+            else:
+                # once the sentence is found >> add the e-snli annotation
+                Y_test += eval(e_snli_data["hg_goal"][j])
+
+                # loop over every head of every layer
+                for l in range(12):
+                    for h in range(12):
+                        b = raw_attention_inst.attention_tensor[0, l, h, 0, :].detach().numpy()
+                        b = [x if x not in SPECIAL_TOKENS else 0 for x in b]
+                        # >> add the attention
+                        pur_attention[f"layer_{l}"][f"head_{h}"] += list(np.array(b))
+
+        except LenException:
+            pass
+
+    # return the two objects to calculate the metric for each head.
+    return pur_attention, Y_test
