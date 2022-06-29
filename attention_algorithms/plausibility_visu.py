@@ -46,26 +46,19 @@ def construct_html_table(metrics_name,
     table = "".join(table)
 
     # construction of the html around the table to have a beautiful display
-    head = "<!DOCTYPE html> <html> <head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+    head = "<!DOCTYPE html> <html> <head>"
     res.append(head)
     style_page = """<style>
-        table {
+        table, th, td {
+          border: 1px solid black;
           border-collapse: collapse;
-          border-spacing: 0;
-          width: 100%;
-          border: 1px solid #ddd;
         }
-
         th, td {
-          text-align: left;
-          padding: 16px;
+          background-color: #778899;
+          color : black;
         }
-
-        tr:nth-child(even) {
-          background-color: #f2f2f2;
-        }
-        </style>
-        </head>
+    </style>
+    </head>
     """
 
     res.append(style_page)

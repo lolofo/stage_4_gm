@@ -8,7 +8,8 @@ from torch.utils.data import DataLoader
 from os import path
 
 """
-easier to use than the DataModule for the inference part.
+For the inference part we will take into account this dataset
+In this dataset we delete all the 
 """
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -42,7 +43,10 @@ class SnliDataset(Dataset):
     custom dataset
     '''
 
-    def __init__(self, dir=train_dir, nb_sentences=100, msg=True):
+    def __init__(self, dir=train_dir,
+                 nb_sentences=100,
+                 keep_neutral=False,
+                 msg=True):
         '''
         initiation of the dataset :
             - the default parameter here are for the training
@@ -61,11 +65,15 @@ class SnliDataset(Dataset):
         labels = []
 
         for i in range(nb_sent):
-
             try:
+                if keep_neutral:
+                    sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
+                    labels.append(label[i])
 
-                sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
-                labels.append(label[i])
+                else:
+                    if label[i] != "neutral":
+                        sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
+                        labels.append(label[i])
 
             except:
 
