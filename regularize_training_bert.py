@@ -25,6 +25,7 @@ from modules import transforms as t
 
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
+
 #############
 ### model ###
 #############
@@ -34,7 +35,7 @@ class BertNliRegu(pl.LightningModule):
 
     """
 
-    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss()):
+    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss(), reg_mul=0):
         super().__init__()
 
         self.save_hyperparameters("reg_mul")
@@ -55,13 +56,15 @@ class BertNliRegu(pl.LightningModule):
 
         # multiplier of the reg term
         # if this term is high >> high regularization
-        self.reg_mul = 0
+        self.reg_mul = reg_mul
+        self.reg_lay = None # the layers on which we will apply the regularization
 
         self.train_acc = Accuracy(num_class=3)
         self.val_acc = Accuracy(num_class=3)
         self.test_acc = Accuracy(num_class=3)
         self.criterion = criterion
 
+    # TODO bug to fix for the training
     def forward(self, input_ids, attention_mask, *args, **kwargs):
         # don't save any tensor with gradient, conflict in multiprocessing
         output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
@@ -70,7 +73,7 @@ class BertNliRegu(pl.LightningModule):
         # the logits are the weights before the softmax.
         logits = self.classifier(cls_token)
 
-        return logits, output
+        return {"logits": logits, "outputs": output}
 
     def configure_optimizers(self):
         '''
@@ -85,17 +88,19 @@ class BertNliRegu(pl.LightningModule):
     ######################
 
     # calculation of the regularization term
-    def entropy_regu(
-            outputs,
-            input_ids):
+    # TODO : update the function to have a dictionnary for the output
+    # TODO : update the function to have a rgularization on some layers
+    def entropy_regu(self,
+                     outputs,
+                     input_ids):
         # calculate the entropia terms based on the outputs
         # outputs >> bert output form
-        spe_ids = torch.tensor([0, 101, 102])
+        spe_ids = torch.tensor([0, 101, 102]).to(self.device)
         # indexes of the specials tokens for the bert tokenizer
 
         # logical mask
         mask = torch.tensor(torch.logical_not(torch.isin(input_ids, spe_ids)),
-                            dtype=int)
+                            dtype=int).to(self.device)
 
         den_log = torch.log(mask.sum(dim=1))  # how many dim tokens do we have
         # we repeat the mask along the different axes of the heads and the different
@@ -107,16 +112,16 @@ class BertNliRegu(pl.LightningModule):
 
         # attention score for each head of each layer
         # shape of [b, l, h, T = 150] we have a score for each sentences
-        as_scores = attention_tensor.sum(dim=-1)
+        as_scores = attention_tensor.sum(dim=3)
 
         # with the new dimensions we perform the mask >> remove of the special tokens
         as_scores = torch.mul(as_scores, mask)
 
-        as_scores = as_scores / as_scores.sum(dim=-1).unsqueeze(3).repeat(1, 1, 1, 150)
+        as_scores = torch.softmax(as_scores, dim=-1)
 
         # calculation of the entropia
         # as_scores [b, l, h, T]
-        etp_scores = -as_scores * torch.nan_to_num(torch.log(as_scores))
+        etp_scores = -as_scores * torch.log(as_scores)
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
 
         res = etp_scores.sum() / (etp_scores.shape[0] * etp_scores.shape[1] * etp_scores.shape[2])
@@ -127,7 +132,9 @@ class BertNliRegu(pl.LightningModule):
 
     def training_step(self, train_batch, batch_idx):
         input_ids, attention_mask, labels = train_batch
-        logits, outputs = self(input_ids, attention_mask)
+        buff = self(input_ids, attention_mask)
+        logits = buff["logits"]
+        outputs = buff["outputs"]
 
         # calculation of the loss
         reg_term = self.entropy_regu(outputs=outputs,
@@ -153,26 +160,27 @@ class BertNliRegu(pl.LightningModule):
 
     def validation_step_end(self, output):
         self.val_acc(output['preds'], output['target'])
-        self.log("val/loss", output['loss'], on_step=False, on_epoch=True, logger=True)
-        self.log("val/acc", self.val_acc, on_step=False, on_epoch=True, logger=True)
+        self.log("val/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
+        self.log("val/acc", self.val_acc, on_step=True, on_epoch=False, logger=True)
 
     ##################
     ### test steps ###
     ##################
     def test_step(self, batch, batch_idx):
         input_ids, attention_mask, labels = batch
-        logits = self.forward(input_ids, attention_mask)
+        buff = self(input_ids, attention_mask)
+        logits = buff["logits"]
 
         # some tools for the end_validation
         class_pred = torch.softmax(logits, dim=1)
         return {'preds': class_pred, 'target': labels}
 
     def test_step_end(self, output):
-        # TODO :
+        # TODO : add the auc metric
         self.test_acc(output['preds'], output['target'])
-        self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
+        self.log("test/acc", self.test_acc, on_step=True, on_epoch=False, logger=True)
 
-        self.log("hp/auc", output["auc"], on_step=True, on_epoch=True)
+        # self.log("hp/auc", output["auc"], on_step=True, on_epoch=True)
 
 
 ################
@@ -287,3 +295,109 @@ def get_num_workers() -> int:
 
     num_workers = os.cpu_count()
     return num_workers if num_workers is not None else 0
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    # .cache folder >> the folder where everything will be saved
+    cache = path.join(os.getcwd(), '.cache')
+    if not path.exists(path.join(cache, 'plots')):
+        os.mkdir(path.join(cache, 'plots'))
+
+    parser.add_argument('-e', '--epoch', type=int, default=1)
+    parser.add_argument('-b', '--batch_size', type=int, default=4)
+
+    # what model we should use the default is 1 >> the one created in this file
+    parser.add_argument('-t', '--model_type', type=int, default=1)
+
+    # default datadir >> ./.cache/dataset >> cache for our datamodule.
+    parser.add_argument('-d', '--data_dir', default=path.join(cache, 'dataset'))
+
+    # log_dir for the logger
+    parser.add_argument('-s', '--log_dir', default=path.join(cache, 'logs'))
+
+    parser.add_argument('-n', '--nb_data', type=int, default=-1)
+    parser.add_argument('-mn', '--model_name')
+
+    # config to distinguish experimentations
+    parser.add_argument('--exp', action='store_true')  # mode experiment: avoid printing progress bars
+
+    # save in [args.log_dir]/[experiments]/[version]
+    parser.add_argument('--experiment', type=str, default='test')
+    parser.add_argument('--version', type=str, default='0.0')
+
+    # config for cluster distribution
+    parser.add_argument('--num_workers', type=int,
+                        default=get_num_workers())  # auto select appropriate cores in machine
+    parser.add_argument('--accelerator', type=str, default='auto')  # auto select GPU if exists
+
+    # config for the regularization
+    parser.add_argument('--reg_mul', type=float, default=0)  # the regularize terms
+
+    args = parser.parse_args()
+
+    # Summary information
+    print('>> workers: ', args.num_workers)
+    print('>> nb_data: ', args.nb_data)
+
+    dm = SNLIDataModule(
+        cache=args.data_dir,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        nb_data=args.nb_data
+    )
+
+    model = None
+    if args.model_type == 1:
+        model = BertNliRegu(criterion=nn.CrossEntropyLoss(),
+                            reg_mul=args.reg_mul)
+
+    ######################
+    ### trainer config ###
+    ######################
+
+    # set the direction to visualize the logs of the training
+    # the visualization will be done with tensorboard.
+    logger = TensorBoardLogger(
+        save_dir=args.log_dir,  # the main log folder
+        name=args.experiment,  # name of the log >> related to the name of the model we use
+        version=args.version,  # version of the log
+        default_hp_metric=False  # deactivate hp_metric on tensorboard visualization
+    )
+    # logger = TensorBoardLogger(name=args.log_dir, save_dir=log_dir + '/')
+
+    # call back
+    early_stopping = cb.EarlyStopping('val/acc', patience=5, verbose=args.exp,
+                                      mode='min')  # stop if no improvement withing 5 epochs
+    model_checkpoint = cb.ModelCheckpoint(
+        filename='best', monitor='val/loss', mode='min',  # save the minimum val_loss
+    )
+
+    trainer = pl.Trainer(
+        max_epochs=args.epoch,
+        accelerator=args.accelerator,  # auto use gpu
+        enable_progress_bar=not args.exp,  # hide progress bar in experimentation
+        log_every_n_steps=1,
+        default_root_dir=args.log_dir,
+        logger=logger,
+        callbacks=[early_stopping, model_checkpoint],
+        detect_anomaly=not args.exp
+    )
+
+    #############################
+    ### training of the model ###
+    #############################
+    dm.setup(stage='fit')
+    trainer.fit(model, datamodule=dm)
+
+    dm.setup(stage='test')
+    performance = trainer.test(
+        ckpt_path='best',
+        datamodule=dm
+    )
+
+    logger.log_metrics(performance[0])
+
+    print('Training finished')

@@ -97,11 +97,9 @@ class SnliDataset(Dataset):
         self.labels = buff.replace(oh_labels).apply(eval).values
 
     def __len__(self):
-
         return len(self.labels)
 
     def __getitem__(self, idx):
-
         ids = torch.tensor(self.ids[idx])
         att = torch.tensor(self.attention_mask[idx])
         lab = torch.tensor(self.labels[idx])
@@ -111,20 +109,12 @@ class SnliDataset(Dataset):
 
 
 if __name__ == "__main__":
-    '''
-    test of the dataset with a dataloarder
-    '''
-
     train_data_set = SnliDataset()
     print(len(train_data_set))
     # build a dataloader over this dataset.
     train_dataloader = DataLoader(train_data_set, batch_size=32, shuffle=True)
     print(len(train_dataloader))
 
-    '''
-    manipulation of the dataloader object
-    series of test
-    '''
     sentences, masks, train_labels = next(iter(train_dataloader))
 
     print(f"sentence batch shape: {sentences.size()}")
