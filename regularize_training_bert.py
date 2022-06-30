@@ -158,12 +158,25 @@ class BertNliRegu(pl.LightningModule):
     ########################
 
     def validation_step(self, val_batch, batch_idx):
-        return self.training_step(val_batch, batch_idx)
+        input_ids, attention_mask, labels = val_batch
+        buff = self.forward(input_ids, attention_mask)
+        logits = buff["logits"]
+        outputs = buff["outputs"]
+
+        # calculation of the loss
+        reg_term = self.entropy_regu(outputs=outputs,
+                                     input_ids=input_ids)
+        loss = self.criterion(logits, labels) + self.reg_mul * reg_term
+
+        class_pred = torch.softmax(logits, dim=1)
+        return {'val_/loss': loss, 'preds': class_pred, 'target': labels, 'reg_term': reg_term}
+
+    # add the validation end
 
     def validation_step_end(self, output):
         self.val_acc(output['preds'], output['target'])
-        self.log("val_/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
-        self.log("val_/acc", self.val_acc, on_step=True, on_epoch=False, logger=True)
+        self.log("val_/loss", output['val_/loss'], on_step=True, on_epoch=True, logger=True)
+        self.log("val_/acc", self.val_acc, on_step=True, on_epoch=True, logger=True)
 
     ##################
     ### test steps ###
@@ -371,10 +384,10 @@ if __name__ == '__main__':
     # logger = TensorBoardLogger(name=args.log_dir, save_dir=log_dir + '/')
 
     # call back
-    early_stopping = cb.EarlyStopping("val/loss", patience=5, verbose=args.exp,
+    early_stopping = cb.EarlyStopping(monitor="val_/loss", patience=5, verbose=args.exp,
                                       mode='min')
     model_checkpoint = cb.ModelCheckpoint(
-        filename='best', monitor="val/loss", mode='min',  # save the minimum val_loss
+        filename='best', monitor="val_/loss", mode='min',  # save the minimum val_loss
     )
 
     trainer = pl.Trainer(
