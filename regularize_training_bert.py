@@ -25,10 +25,14 @@ from modules import transforms as t
 
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
-
 #############
 ### model ###
 #############
+
+# constants for numerical stabilities
+EPS = 1e-10
+INF = 1e30
+
 
 class BertNliRegu(pl.LightningModule):
     """ BertNliLight modèle (Bert for snli task)
@@ -57,14 +61,13 @@ class BertNliRegu(pl.LightningModule):
         # multiplier of the reg term
         # if this term is high >> high regularization
         self.reg_mul = reg_mul
-        self.reg_lay = None # the layers on which we will apply the regularization
+        self.reg_lay = None  # the layers on which we will apply the regularization
 
         self.train_acc = Accuracy(num_class=3)
         self.val_acc = Accuracy(num_class=3)
         self.test_acc = Accuracy(num_class=3)
         self.criterion = criterion
 
-    # TODO bug to fix for the training
     def forward(self, input_ids, attention_mask, *args, **kwargs):
         # don't save any tensor with gradient, conflict in multiprocessing
         output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
@@ -116,12 +119,11 @@ class BertNliRegu(pl.LightningModule):
 
         # with the new dimensions we perform the mask >> remove of the special tokens
         as_scores = torch.mul(as_scores, mask)
-
-        as_scores = torch.softmax(as_scores, dim=-1)
+        as_scores = torch.softmax(as_scores - INF * (1 - mask), dim=-1)
 
         # calculation of the entropia
         # as_scores [b, l, h, T]
-        etp_scores = -as_scores * torch.log(as_scores)
+        etp_scores = -as_scores * torch.log(as_scores + EPS * (1 - mask))
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
 
         res = etp_scores.sum() / (etp_scores.shape[0] * etp_scores.shape[1] * etp_scores.shape[2])
@@ -132,7 +134,7 @@ class BertNliRegu(pl.LightningModule):
 
     def training_step(self, train_batch, batch_idx):
         input_ids, attention_mask, labels = train_batch
-        buff = self(input_ids, attention_mask)
+        buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
         outputs = buff["outputs"]
 
@@ -147,9 +149,9 @@ class BertNliRegu(pl.LightningModule):
 
     def training_step_end(self, output):
         self.train_acc(output['preds'], output['target'])
-        self.log("train/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
-        self.log("train/acc", self.train_acc, on_step=True, on_epoch=False, logger=True)
-        self.log("train/reg", output["reg_term"], on_step=True, on_epoch=False, logger=True)
+        self.log("train_/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
+        self.log("train_/acc", self.train_acc, on_step=True, on_epoch=False, logger=True)
+        self.log("train_/reg", output["reg_term"], on_step=True, on_epoch=False, logger=True)
 
     ########################
     ### validation steps ###
@@ -160,15 +162,15 @@ class BertNliRegu(pl.LightningModule):
 
     def validation_step_end(self, output):
         self.val_acc(output['preds'], output['target'])
-        self.log("val/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
-        self.log("val/acc", self.val_acc, on_step=True, on_epoch=False, logger=True)
+        self.log("val_/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
+        self.log("val_/acc", self.val_acc, on_step=True, on_epoch=False, logger=True)
 
     ##################
     ### test steps ###
     ##################
     def test_step(self, batch, batch_idx):
         input_ids, attention_mask, labels = batch
-        buff = self(input_ids, attention_mask)
+        buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
 
         # some tools for the end_validation
@@ -178,7 +180,7 @@ class BertNliRegu(pl.LightningModule):
     def test_step_end(self, output):
         # TODO : add the auc metric
         self.test_acc(output['preds'], output['target'])
-        self.log("test/acc", self.test_acc, on_step=True, on_epoch=False, logger=True)
+        self.log("test_/acc", self.test_acc, on_step=True, on_epoch=False, logger=True)
 
         # self.log("hp/auc", output["auc"], on_step=True, on_epoch=True)
 
@@ -369,10 +371,10 @@ if __name__ == '__main__':
     # logger = TensorBoardLogger(name=args.log_dir, save_dir=log_dir + '/')
 
     # call back
-    early_stopping = cb.EarlyStopping('val/acc', patience=5, verbose=args.exp,
-                                      mode='min')  # stop if no improvement withing 5 epochs
+    early_stopping = cb.EarlyStopping("val/loss", patience=5, verbose=args.exp,
+                                      mode='min')
     model_checkpoint = cb.ModelCheckpoint(
-        filename='best', monitor='val/loss', mode='min',  # save the minimum val_loss
+        filename='best', monitor="val/loss", mode='min',  # save the minimum val_loss
     )
 
     trainer = pl.Trainer(
