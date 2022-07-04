@@ -382,8 +382,6 @@ if __name__ == '__main__':
 
     # .cache folder >> the folder where everything will be saved
     cache = path.join(os.getcwd(), '.cache')
-    if not path.exists(path.join(cache, 'plots')):
-        os.mkdir(path.join(cache, 'plots'))
 
     parser.add_argument('-e', '--epoch', type=int, default=1)
     parser.add_argument('-b', '--batch_size', type=int, default=4)
