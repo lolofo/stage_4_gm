@@ -25,7 +25,6 @@ LAB_ENC = {"entailment": 0,
 
 
 class EsnliDataSet(Dataset):
-    # TODO gérer le problème de l'encodage des labels
     def __init__(self, split="TRAIN", nb_data=-1):
         self.dirs = [os.path.join(DIR, f) for f in eval(split)]  # where the datas are
         self.data = None
@@ -47,7 +46,7 @@ class EsnliDataSet(Dataset):
         annotation = buff + [0] * (MAX_PAD - len(buff))
         label = self.data.label.values[item]
         return {"premise": premise, "hypothesis": hypothesis,
-                "annotation": torch.tensor(annotation),
+                "annotation": torch.tensor(annotation, requires_grad=False),
                 "label": torch.tensor(LAB_ENC[label])}
 
     def __len__(self):

@@ -5,7 +5,9 @@ import torch
 
 import pytorch_lightning as pl
 from datasets import load_dataset
-from e_snli_dataset import EsnliDataSet
+from e_snli_dataset import EsnliDataSet, MAX_PAD
+import warnings
+from dataset.esnli.e_snli_tok import download_e_snli_data
 
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
@@ -13,6 +15,7 @@ from torch import nn
 
 from pytorch_lightning.loggers import TensorBoardLogger
 from torchmetrics import Accuracy
+from torchmetrics import AUROC
 
 from transformers import BertModel
 from transformers import BertTokenizer
@@ -64,10 +67,16 @@ class BertNliRegu(pl.LightningModule):
         self.reg_mul = reg_mul
         self.reg_lay = None  # the layers on which we will apply the regularization
 
+        ### METRICS ###
         self.train_acc = Accuracy(num_class=3)
         self.val_acc = Accuracy(num_class=3)
         self.test_acc = Accuracy(num_class=3)
         self.criterion = criterion
+
+        # auc plausibility scores
+        self.train_auc = AUROC(pos_label=1)
+        self.val_auc = AUROC(pos_label=1)
+        self.test_auc = AUROC(pos_label=1)
 
     def forward(self, input_ids, attention_mask, *args, **kwargs):
         # don't save any tensor with gradient, conflict in multiprocessing
@@ -129,7 +138,11 @@ class BertNliRegu(pl.LightningModule):
 
         res = etp_scores.sum() / (etp_scores.shape[0] * etp_scores.shape[1] * etp_scores.shape[2])
 
-        return res
+        buff = as_scores.sum(dim=1).sum(dim=1)
+        mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+        maxs = buff.max(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+        return {"pen": res,
+                "scores": (buff - mins) / (maxs - mins)}
 
     # at the end of
 
@@ -145,11 +158,16 @@ class BertNliRegu(pl.LightningModule):
         # calculation of the loss
         reg_term = self.entropy_regu(outputs=outputs,
                                      input_ids=input_ids)
-        loss = self.criterion(logits, labels) + self.reg_mul * reg_term
+        loss = self.criterion(logits, labels) + self.reg_mul * reg_term["pen"]
 
         class_pred = torch.softmax(logits, dim=1)
+        # calculus of the attention score for the auc --> see the evolution of the auc through the epochs
 
-        return {'loss': loss, 'preds': class_pred, 'target': labels, 'reg_term': reg_term}
+        return {'loss': loss, 'preds': class_pred, 'target': labels, 'reg_term': reg_term["pen"],
+                'auc': (torch.flatten(reg_term["scores"]).clone().detach(),
+                        torch.flatten(train_batch["annotations"])
+                        )
+                }
 
     def training_step_end(self, output):
         self.train_acc(output['preds'], output['target'])
@@ -157,10 +175,14 @@ class BertNliRegu(pl.LightningModule):
         self.log("train_/acc", self.train_acc, on_step=True, on_epoch=False, logger=True)
         self.log("train_/reg", output["reg_term"], on_step=True, on_epoch=False, logger=True)
 
+        # the auc calculus
+        self.log("train_/auc", self.val_auc(output["auc"][0], output["auc"][1]),
+                 on_step=True, on_epoch=False, logger=True)
+
     ########################
     ### validation steps ###
     ########################
-
+    # for the validation we must have leaves tensor -> no grad
     def validation_step(self, val_batch, batch_idx):
         input_ids = val_batch["input_ids"]
         attention_mask = val_batch["attention_masks"]
@@ -173,17 +195,24 @@ class BertNliRegu(pl.LightningModule):
         # calculation of the loss
         reg_term = self.entropy_regu(outputs=outputs,
                                      input_ids=input_ids)
-        loss = self.criterion(logits, labels) + self.reg_mul * reg_term
+        loss = self.criterion(logits, labels) + self.reg_mul * reg_term["pen"]
 
         class_pred = torch.softmax(logits, dim=1)
-        return {'val_/loss': loss, 'preds': class_pred, 'target': labels, 'reg_term': reg_term}
-
-    # add the validation end
+        return {'val_/loss': loss, 'preds': class_pred, 'target': labels, 'reg_term': reg_term["pen"],
+                'auc': (
+                    torch.flatten(reg_term["scores"]).clone().detach(),
+                    torch.flatten(val_batch["annotations"])
+                )
+                }
 
     def validation_step_end(self, output):
+        # to acess the val loss for the callbacks put on epoch = True in the logger
         self.val_acc(output['preds'], output['target'])
         self.log("val_/loss", output['val_/loss'], on_step=True, on_epoch=True, logger=True)
         self.log("val_/acc", self.val_acc, on_step=True, on_epoch=True, logger=True)
+
+        self.log("val_/auc", self.val_auc(output["auc"][0], output["auc"][1]),
+                 on_step=True, on_epoch=False, logger=True)
 
     ##################
     ### test steps ###
@@ -195,17 +224,23 @@ class BertNliRegu(pl.LightningModule):
 
         buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
+        reg_term = self.entropy_regu(outputs=buff["outputs"],
+                                     input_ids=input_ids)
 
         # some tools for the end_validation
         class_pred = torch.softmax(logits, dim=1)
-        return {'preds': class_pred, 'target': labels}
+        return {'preds': class_pred, 'target': labels,
+                'auc': (
+                    torch.flatten(reg_term["scores"]).clone().detach(),
+                    torch.flatten(batch["annotations"])
+                )
+                }
 
     def test_step_end(self, output):
-        # TODO : add the auc metric
         self.test_acc(output['preds'], output['target'])
-        self.log("test_/acc", self.test_acc, on_step=True, on_epoch=False, logger=True)
-
-        # self.log("hp/auc", output["auc"], on_step=True, on_epoch=True)
+        self.log("hp/acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
+        self.log("hp/auc", self.test_auc(output["auc"][0], output["auc"][1]),
+                 on_step=False, on_epoch=True, logger=True)
 
 
 ################
@@ -243,10 +278,13 @@ class SNLIDataModule(pl.LightningDataModule):
         self.test_set = None
 
     def prepare_data(self):
-        """
-        no data to download here
-        """
-        pass
+        if not os.path.exists(self.cache):
+            warnings.warn("the data doesn't exist yet we will proceed the download")
+            download_e_snli_data()
+        else :
+            warnings.warn("the data is on the disk !")
+
+
 
     def setup(self, stage: str = None):
         """
@@ -301,7 +339,7 @@ class SNLIDataModule(pl.LightningDataModule):
         input_ids, attention_mask = self.t_tokenize(texts)
         input_ids = self.t_tensor(input_ids)
         attention_mask = self.t_tensor(attention_mask)
-        annotation = batch["annotation"]
+        annotation = torch.stack(batch["annotation"], dim=0)
         labels = self.t_tensor(batch['label'])
 
         return {"input_ids": input_ids, "attention_masks": attention_mask, "labels": labels,
@@ -349,7 +387,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--model_type', type=int, default=1)
 
     # default datadir >> ./.cache/dataset >> cache for our datamodule.
-    parser.add_argument('-d', '--data_dir', default=path.join(cache, 'dataset'))
+    parser.add_argument('-d', '--data_dir', default=path.join(cache, 'raw_data', 'e_snli', 'cleaned_data'))
 
     # log_dir for the logger
     parser.add_argument('-s', '--log_dir', default=path.join(cache, 'logs'))
