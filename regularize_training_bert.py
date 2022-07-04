@@ -7,7 +7,10 @@ import pytorch_lightning as pl
 from datasets import load_dataset
 from e_snli_dataset import EsnliDataSet, MAX_PAD
 import warnings
+
+# download the data
 from dataset.esnli.e_snli_tok import download_e_snli_data
+from data_download import download_e_snli_raw
 
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
@@ -279,12 +282,12 @@ class SNLIDataModule(pl.LightningDataModule):
 
     def prepare_data(self):
         if not os.path.exists(self.cache):
+            # downloading the data is a bit long !
             warnings.warn("the data doesn't exist yet we will proceed the download")
+            download_e_snli_raw(self.cache)
             download_e_snli_data(self.cache)
-        else :
+        else:
             warnings.warn("the data is on the disk !")
-
-
 
     def setup(self, stage: str = None):
         """
@@ -301,9 +304,10 @@ class SNLIDataModule(pl.LightningDataModule):
         if stage == 'fit' or stage is None:
             buff = None
             if self.nb_data > 0:
-                buff = EsnliDataSet(split="TRAIN", nb_data=self.nb_data)
+                buff = EsnliDataSet(split="TRAIN", nb_data=self.nb_data,
+                                    cache_path=os.path.join(self.cache, "cleaned_data"))
             else:
-                buff = EsnliDataSet(split="TRAIN")
+                buff = EsnliDataSet(split="TRAIN", cache_path=os.path.join(self.cache, "cleaned_data"))
             # 80% train 20% validation
             train_size = int(0.8 * len(buff))
             test_size = len(buff) - train_size
@@ -312,9 +316,10 @@ class SNLIDataModule(pl.LightningDataModule):
         if stage == 'test' or stage is None:
             buff = None
             if self.nb_data > 0:
-                buff = EsnliDataSet(split="TEST", nb_data=self.nb_data)
+                buff = EsnliDataSet(split="TEST", nb_data=self.nb_data,
+                                    cache_path=os.path.join(self.cache, "cleaned_data"))
             else:
-                buff = EsnliDataSet(split="TEST")
+                buff = EsnliDataSet(split="TEST", cache_path=os.path.join(self.cache, "cleaned_data"))
             self.test_set = buff
 
     def train_dataloader(self):
@@ -387,7 +392,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--model_type', type=int, default=1)
 
     # default datadir >> ./.cache/dataset >> cache for our datamodule.
-    parser.add_argument('-d', '--data_dir', default=path.join(cache, 'raw_data', 'e_snli', 'cleaned_data'))
+    parser.add_argument('-d', '--data_dir', default=path.join(cache, 'raw_data', 'e_snli'))
 
     # log_dir for the logger
     parser.add_argument('-s', '--log_dir', default=path.join(cache, 'logs'))

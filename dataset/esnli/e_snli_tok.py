@@ -142,8 +142,8 @@ def _combine_sentences(data: pd.DataFrame):
 
     return data
 
+# download the data for the training
 def download_e_snli_data(cache_path):
-    
     folders = ["esnli_" + u for u in ["dev.csv", "test.csv", "train_1.csv", "train_2.csv"]]
     dirs = [os.path.join(cache_path, f) for f in folders]
     save_dir = os.path.join(cache_path, "cleaned_data")
@@ -157,5 +157,6 @@ def download_e_snli_data(cache_path):
         df = _combine_sentences(df)
         df.to_csv(os.path.join(save_dir, d.split("_")[-1]))
 
+
 if __name__ == "__main__":
-    download_e_snli_data()
+    download_e_snli_data(os.path.join(".cache", "raw_data", "e_snli"))
