@@ -142,16 +142,11 @@ def _combine_sentences(data: pd.DataFrame):
 
     return data
 
-def download_e_snli_data():
-    cwd = os.getcwd().split(os.path.sep)
-    while cwd[-1] != "stage_4_gm":
-        os.chdir("..")
-        cwd = os.getcwd().split(os.path.sep)
-
-    directory = os.path.join(os.getcwd(), ".cache", "raw_data", "e_snli")
+# download the data for the training
+def download_e_snli_data(cache_path):
     folders = ["esnli_" + u for u in ["dev.csv", "test.csv", "train_1.csv", "train_2.csv"]]
-    dirs = [os.path.join(directory, f) for f in folders]
-    save_dir = os.path.join(directory, "cleaned_data")
+    dirs = [os.path.join(cache_path, f) for f in folders]
+    save_dir = os.path.join(cache_path, "cleaned_data")
 
     if not (os.path.exists(save_dir)):
         os.mkdir(save_dir)
@@ -162,5 +157,6 @@ def download_e_snli_data():
         df = _combine_sentences(df)
         df.to_csv(os.path.join(save_dir, d.split("_")[-1]))
 
+
 if __name__ == "__main__":
-    download_e_snli_data()
+    download_e_snli_data(os.path.join(".cache", "raw_data", "e_snli"))

@@ -25,19 +25,21 @@ LAB_ENC = {"entailment": 0,
 
 
 class EsnliDataSet(Dataset):
-    def __init__(self, split="TRAIN", nb_data=-1):
-        self.dirs = [os.path.join(DIR, f) for f in eval(split)]  # where the datas are
+    def __init__(self, split="TRAIN", nb_data=-1, cache_path=DIR):
+        self.dirs = [os.path.join(cache_path, f) for f in eval(split)]  # where the datas are
         self.data = None
         if split == "TRAIN":
             # in the function don't forget to split for the training and validation part.
-            df1 = pd.read_csv(os.path.join(self.dirs[0]), usecols=KEEP_COLS)
-            df2 = pd.read_csv(os.path.join(self.dirs[1]), usecols=KEEP_COLS)
+            df1 = pd.read_csv(self.dirs[0], usecols=KEEP_COLS)
+            df2 = pd.read_csv(self.dirs[1], usecols=KEEP_COLS)
             self.data = pd.concat([df1, df2])
         elif split in ["TEST", "DEV"]:
             self.data = pd.read_csv(os.path.join(self.dirs[0]), usecols=KEEP_COLS)
 
         if nb_data > 0:
-            self.data = shuffle(self.data).reset_index(drop=True).iloc[:nb_data]
+            # fraction of data to keep
+            frac = nb_data / self.data.shape[0]
+            self.data = self.data.sample(frac=frac).reset_index()
 
     def __getitem__(self, item):
         premise = self.data.premise.values[item]
@@ -56,7 +58,7 @@ class EsnliDataSet(Dataset):
 if __name__ == "__main__":
     print("TEST of the SNLI dataset")
 
-    train_ds = EsnliDataSet(split="TRAIN", nb_data=-1)
+    train_ds = EsnliDataSet(split="TRAIN", nb_data=100)
     print(">> len(train_ds) : ", len(train_ds))
     train_dl = DataLoader(train_ds, batch_size=32, shuffle=False)
     d = next(iter(train_dl))
@@ -83,4 +85,3 @@ if __name__ == "__main__":
 
     print(">> nb_ids : ", sum(attention_mask[0]))
     print(">> len(m1) : ", len(m1))
-
