@@ -142,21 +142,30 @@ def _combine_sentences(data: pd.DataFrame):
 
     return data
 
+
 # download the data for the training
-def download_e_snli_data(cache_path):
-    folders = ["esnli_" + u for u in ["dev.csv", "test.csv", "train_1.csv", "train_2.csv"]]
-    dirs = [os.path.join(cache_path, f) for f in folders]
+def process_e_snli_data(cache_path):
+    """
+    process the e_snli_data present in the cache_path folder
+    +
+    download them to the cleaned data folder
+    """
+    files = ["esnli_" + u for u in ["dev.csv", "test.csv", "train_1.csv", "train_2.csv"]]
+    dirs = [os.path.join(cache_path, f) for f in files]
     save_dir = os.path.join(cache_path, "cleaned_data")
 
     if not (os.path.exists(save_dir)):
+        # creation of the save dir
         os.mkdir(save_dir)
 
     for d in dirs:
+        sv_dir = os.path.join(save_dir, d.split("_")[-1])
+        if os.path.exists(sv_dir): continue
         df = pd.read_csv(d, sep=",")
         df = _reformat_csv(df)
         df = _combine_sentences(df)
-        df.to_csv(os.path.join(save_dir, d.split("_")[-1]))
+        df.to_csv(sv_dir)
 
 
 if __name__ == "__main__":
-    download_e_snli_data(os.path.join(".cache", "raw_data", "e_snli"))
+    process_e_snli_data(os.path.join(".cache", "raw_data", "e_snli"))
