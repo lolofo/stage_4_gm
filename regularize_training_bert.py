@@ -174,12 +174,13 @@ class BertNliRegu(pl.LightningModule):
 
     def training_step_end(self, output):
         self.train_acc(output['preds'], output['target'])
+        self.train_auc(output["auc"][0], output["auc"][1])
         self.log("train_/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
         self.log("train_/acc", self.train_acc, on_step=True, on_epoch=False, logger=True)
         self.log("train_/reg", output["reg_term"], on_step=True, on_epoch=False, logger=True)
 
         # the auc calculus
-        self.log("train_/auc", self.val_auc(output["auc"][0], output["auc"][1]),
+        self.log("train_/auc", self.train_auc,
                  on_step=True, on_epoch=False, logger=True)
 
     ########################
@@ -211,10 +212,11 @@ class BertNliRegu(pl.LightningModule):
     def validation_step_end(self, output):
         # to acess the val loss for the callbacks put on epoch = True in the logger
         self.val_acc(output['preds'], output['target'])
+        self.val_auc(output["auc"][0], output["auc"][1])
         self.log("val_/loss", output['val_/loss'], on_step=True, on_epoch=True, logger=True)
         self.log("val_/acc", self.val_acc, on_step=True, on_epoch=True, logger=True)
 
-        self.log("val_/auc", self.val_auc(output["auc"][0], output["auc"][1]),
+        self.log("val_/auc", self.val_auc,
                  on_step=True, on_epoch=False, logger=True)
 
     ##################
@@ -241,9 +243,10 @@ class BertNliRegu(pl.LightningModule):
 
     def test_step_end(self, output):
         self.test_acc(output['preds'], output['target'])
+        self.test_auc(output["auc"][0], output["auc"][1])
         self.log("hp/acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
         #self.test_auc[]
-        self.log("hp/auc", self.test_auc(output["auc"][0], output["auc"][1]),
+        self.log("hp/auc", self.test_auc,
                  on_step=False, on_epoch=True, logger=True)
 
 
