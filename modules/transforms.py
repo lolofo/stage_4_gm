@@ -13,6 +13,7 @@ class AddSepTransform(Module):
 
     def forward(self, premise, hypothesis):
         if isinstance(premise, str):
+            # batch of size 1 --> for the test part.
             return premise + ' [SEP] ' + hypothesis
         return [p + ' [SEP] ' + h for p, h in zip(premise, hypothesis)]
 

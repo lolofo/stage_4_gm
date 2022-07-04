@@ -151,7 +151,7 @@ if __name__ == "__main__":
         cwd = os.getcwd().split(os.path.sep)
 
     directory = os.path.join(os.getcwd(), ".cache", "raw_data", "e_snli")
-    folders = ["esnli_" + u for u in ["dev.csv", "test.csv"]]
+    folders = ["esnli_" + u for u in ["train_1.csv", "train_2.csv"]]
     dirs = [os.path.join(directory, f) for f in folders]
     save_dir = os.path.join(directory, "cleaned_data")
 

@@ -5,6 +5,7 @@ import torch
 
 import pytorch_lightning as pl
 from datasets import load_dataset
+from e_snli_dataset import EsnliDataSet
 
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
@@ -133,7 +134,10 @@ class BertNliRegu(pl.LightningModule):
     # at the end of
 
     def training_step(self, train_batch, batch_idx):
-        input_ids, attention_mask, labels = train_batch
+        input_ids = train_batch["input_ids"]
+        attention_mask = train_batch["attention_masks"]
+        labels = train_batch["labels"]
+
         buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
         outputs = buff["outputs"]
@@ -158,7 +162,10 @@ class BertNliRegu(pl.LightningModule):
     ########################
 
     def validation_step(self, val_batch, batch_idx):
-        input_ids, attention_mask, labels = val_batch
+        input_ids = val_batch["input_ids"]
+        attention_mask = val_batch["attention_masks"]
+        labels = val_batch["labels"]
+
         buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
         outputs = buff["outputs"]
@@ -182,7 +189,10 @@ class BertNliRegu(pl.LightningModule):
     ### test steps ###
     ##################
     def test_step(self, batch, batch_idx):
-        input_ids, attention_mask, labels = batch
+        input_ids = batch["input_ids"]
+        attention_mask = batch["attention_masks"]
+        labels = batch["labels"]
+
         buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
 
@@ -228,11 +238,15 @@ class SNLIDataModule(pl.LightningDataModule):
         self.t_tokenize = t.BertTokenizeTransform(max_pad=150)
         self.t_tensor = t.CustomToTensor()
 
+        self.train_set = None
+        self.val_set = None
+        self.test_set = None
+
     def prepare_data(self):
-        # called on 1 gpu
-        # verify if the data exists already on the disk
-        if not path.exists(path.join(self.cache, 'snli')):
-            load_dataset('snli', cache_dir=self.cache)
+        """
+        no data to download here
+        """
+        pass
 
     def setup(self, stage: str = None):
         """
@@ -245,22 +259,25 @@ class SNLIDataModule(pl.LightningDataModule):
 
         # called on every GPU
         # load dataset from cache in each instance of GPU
+        # TODO create the e-snli dataset
         if stage == 'fit' or stage is None:
-            self.train_set = load_dataset('snli', split='train', cache_dir=self.cache).filter(
-                lambda example: example['label'] >= 0)
-            self.val_set = load_dataset('snli', split='validation', cache_dir=self.cache).filter(
-                lambda example: example['label'] >= 0)
-
+            buff = None
             if self.nb_data > 0:
-                # else we take all the datas present in the dataset.
-                self.train_set = self.train_set.shard(num_shards=len(self.train_set) // self.nb_data + 1, index=0)
-                self.val_set = self.val_set.shard(num_shards=len(self.val_set) // self.nb_data + 1, index=0)
+                buff = EsnliDataSet(split="TRAIN", nb_data=self.nb_data)
+            else:
+                buff = EsnliDataSet(split="TRAIN")
+            # 80% train 20% validation
+            train_size = int(0.8 * len(buff))
+            test_size = len(buff) - train_size
+            self.train_set, self.val_set = torch.utils.data.random_split(buff, [train_size, test_size])
 
         if stage == 'test' or stage is None:
-            self.test_set = load_dataset('snli', split='test', cache_dir=self.cache).filter(
-                lambda example: example['label'] >= 0)
+            buff = None
             if self.nb_data > 0:
-                self.test_set = self.test_set.shard(num_shards=len(self.test_set) // self.nb_data + 1, index=0)
+                buff = EsnliDataSet(split="TEST", nb_data=self.nb_data)
+            else:
+                buff = EsnliDataSet(split="TEST")
+            self.test_set = buff
 
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True, collate_fn=self.collate,
@@ -284,9 +301,13 @@ class SNLIDataModule(pl.LightningDataModule):
         input_ids, attention_mask = self.t_tokenize(texts)
         input_ids = self.t_tensor(input_ids)
         attention_mask = self.t_tensor(attention_mask)
+        annotation = batch["annotation"]
         labels = self.t_tensor(batch['label'])
-        return input_ids, attention_mask, labels
 
+        return {"input_ids": input_ids, "attention_masks": attention_mask, "labels": labels,
+                "annotations": annotation}
+
+    # maybe not usefull here
     def list2dict(self, batch):
         # convert list of dict to dict of list
         if isinstance(batch, dict): return {k: list(v) for k, v in batch.items()}  # handle case where no batch
