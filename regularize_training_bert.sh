@@ -18,9 +18,6 @@ echo
 echo =============== RUN ${OAR_JOB_ID} ===============
 echo Run $EXEC_FILE at `date +"%T, %d-%m-%Y"`
 
-python data_download.py
-python dataset/esnli/e_snli_tok.py
-
 python $EXEC_FILE -e 2 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.1  --version reg_mul=test --exp
 #python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.0  --version reg_mul=0.0 --exp
 #python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.1  --version reg_mul=0.1 --exp
