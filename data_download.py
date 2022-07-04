@@ -5,6 +5,7 @@ import os
 from os import path
 import pandas as pd
 
+
 def download_snli_raw(cache_path):
     url = 'https://nlp.stanford.edu/projects/snli/snli_1.0.zip'
     response = wget.download(url, "snli_data.zip")
@@ -35,7 +36,11 @@ def download_snli_raw(cache_path):
     except FileNotFoundError:
         print("\t>> verify that all the files are present")
 
+
 def download_e_snli_raw(cache_path):
+    """
+    download the data into the cache_path folder
+    """
     if not path.exists(cache_path):
         os.mkdir(cache_path)
 
@@ -46,8 +51,10 @@ def download_e_snli_raw(cache_path):
 
     for url in urls:
         nm = url.split("/")[-1]
+        if os.path.exists(os.path.join(cache_path, nm)): continue
         df = pd.read_csv(url)
         df.to_csv(path.join(cache_path, nm))
+
 
 if __name__ == "__main__":
     download_snli_raw(os.path.join(os.getcwd(), ".cache", "raw_data", "e_snli"))

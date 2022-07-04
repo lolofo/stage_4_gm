@@ -9,7 +9,7 @@ from e_snli_dataset import EsnliDataSet, MAX_PAD
 import warnings
 
 # download the data
-from dataset.esnli.e_snli_tok import download_e_snli_data
+from dataset.esnli.e_snli_tok import process_e_snli_data
 from data_download import download_e_snli_raw
 
 from torch.optim import AdamW
@@ -174,12 +174,13 @@ class BertNliRegu(pl.LightningModule):
 
     def training_step_end(self, output):
         self.train_acc(output['preds'], output['target'])
+        self.train_auc(output["auc"][0], output["auc"][1])
         self.log("train_/loss", output['loss'], on_step=True, on_epoch=False, logger=True)
         self.log("train_/acc", self.train_acc, on_step=True, on_epoch=False, logger=True)
         self.log("train_/reg", output["reg_term"], on_step=True, on_epoch=False, logger=True)
 
         # the auc calculus
-        self.log("train_/auc", self.val_auc(output["auc"][0], output["auc"][1]),
+        self.log("train_/auc", self.train_auc,
                  on_step=True, on_epoch=False, logger=True)
 
     ########################
@@ -211,10 +212,11 @@ class BertNliRegu(pl.LightningModule):
     def validation_step_end(self, output):
         # to acess the val loss for the callbacks put on epoch = True in the logger
         self.val_acc(output['preds'], output['target'])
+        self.val_auc(output["auc"][0], output["auc"][1])
         self.log("val_/loss", output['val_/loss'], on_step=True, on_epoch=True, logger=True)
         self.log("val_/acc", self.val_acc, on_step=True, on_epoch=True, logger=True)
 
-        self.log("val_/auc", self.val_auc(output["auc"][0], output["auc"][1]),
+        self.log("val_/auc", self.val_auc,
                  on_step=True, on_epoch=False, logger=True)
 
     ##################
@@ -241,8 +243,10 @@ class BertNliRegu(pl.LightningModule):
 
     def test_step_end(self, output):
         self.test_acc(output['preds'], output['target'])
+        self.test_auc(output["auc"][0], output["auc"][1])
         self.log("hp/acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
-        self.log("hp/auc", self.test_auc(output["auc"][0], output["auc"][1]),
+        #self.test_auc[]
+        self.log("hp/auc", self.test_auc,
                  on_step=False, on_epoch=True, logger=True)
 
 
@@ -281,13 +285,9 @@ class SNLIDataModule(pl.LightningDataModule):
         self.test_set = None
 
     def prepare_data(self):
-        if not os.path.exists(self.cache):
-            # downloading the data is a bit long !
-            warnings.warn("the data doesn't exist yet we will proceed the download")
-            download_e_snli_raw(self.cache)
-            download_e_snli_data(self.cache)
-        else:
-            warnings.warn("the data is on the disk !")
+        warnings.warn("we process the data download it can be a bit long ...")
+        download_e_snli_raw(self.cache)
+        process_e_snli_data(self.cache)
 
     def setup(self, stage: str = None):
         """
@@ -307,7 +307,8 @@ class SNLIDataModule(pl.LightningDataModule):
                 buff = EsnliDataSet(split="TRAIN", nb_data=self.nb_data,
                                     cache_path=os.path.join(self.cache, "cleaned_data"))
             else:
-                buff = EsnliDataSet(split="TRAIN", cache_path=os.path.join(self.cache, "cleaned_data"))
+                buff = EsnliDataSet(split="TRAIN", nb_data=-1,
+                                    cache_path=os.path.join(self.cache, "cleaned_data"))
             # 80% train 20% validation
             train_size = int(0.8 * len(buff))
             test_size = len(buff) - train_size
@@ -319,7 +320,8 @@ class SNLIDataModule(pl.LightningDataModule):
                 buff = EsnliDataSet(split="TEST", nb_data=self.nb_data,
                                     cache_path=os.path.join(self.cache, "cleaned_data"))
             else:
-                buff = EsnliDataSet(split="TEST", cache_path=os.path.join(self.cache, "cleaned_data"))
+                buff = EsnliDataSet(split="TEST", nb_data=-1,
+                                    cache_path=os.path.join(self.cache, "cleaned_data"))
             self.test_set = buff
 
     def train_dataloader(self):

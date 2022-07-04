@@ -60,6 +60,7 @@ if __name__ == "__main__":
 
     train_ds = EsnliDataSet(split="TRAIN", nb_data=100)
     print(">> len(train_ds) : ", len(train_ds))
+    print(">> columns : ", train_ds.data.columns)
     train_dl = DataLoader(train_ds, batch_size=32, shuffle=False)
     d = next(iter(train_dl))
     print(">> shape of the annotation ", d["annotation"].shape)
