@@ -280,7 +280,7 @@ class SNLIDataModule(pl.LightningDataModule):
     def prepare_data(self):
         if not os.path.exists(self.cache):
             warnings.warn("the data doesn't exist yet we will proceed the download")
-            download_e_snli_data()
+            download_e_snli_data(self.cache)
         else :
             warnings.warn("the data is on the disk !")
 
