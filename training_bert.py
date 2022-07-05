@@ -57,7 +57,7 @@ class BertNliLight(pl.LightningModule):
     def forward(self, input_ids, attention_mask, *args, **kwargs):
         # don't save any tensor with gradient, conflict in multiprocessing
         output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
-        cls_token = output.last_hidden_state[:, 0, :].clone()
+        cls_token = output.last_hidden_state[:, 0, :]
 
         # the logits are the weights before the softmax.
         logits = self.classifier(cls_token)
@@ -94,8 +94,8 @@ class BertNliLight(pl.LightningModule):
 
     def training_step_end(self, output):
         self.train_acc(output['preds'], output['target'])
-        self.log("train_loss", output['loss'], on_step=False, on_epoch=True, logger=True)
-        self.log("train_acc", self.train_acc, on_step=False, on_epoch=True, logger=True)
+        self.log("train/loss", output['loss'], on_step=False, on_epoch=True, logger=True)
+        self.log("train/acc", self.train_acc, on_step=False, on_epoch=True, logger=True)
 
     ########################
     ### validation steps ###
@@ -106,8 +106,8 @@ class BertNliLight(pl.LightningModule):
 
     def validation_step_end(self, output):
         self.val_acc(output['preds'], output['target'])
-        self.log("val_loss", output['loss'], on_step=False, on_epoch=True, logger=True)
-        self.log("val_acc", self.val_acc, on_step=False, on_epoch=True, logger=True)
+        self.log("val/loss", output['loss'], on_step=False, on_epoch=True, logger=True)
+        self.log("val/acc", self.val_acc, on_step=False, on_epoch=True, logger=True)
 
     ##################
     ### test steps ###
@@ -122,7 +122,7 @@ class BertNliLight(pl.LightningModule):
 
     def test_step_end(self, output):
         self.test_acc(output['preds'], output['target'])
-        self.log("test_acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
+        self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, logger=True)
 
 
 ################
@@ -307,10 +307,10 @@ if __name__ == '__main__':
     # logger = TensorBoardLogger(name=args.log_dir, save_dir=log_dir + '/')
 
     # call back
-    early_stopping = cb.EarlyStopping('val_acc', patience=5, verbose=args.exp,
+    early_stopping = cb.EarlyStopping('val/loss', patience=5, verbose=args.exp,
                                       mode='min')  # stop if no improvement withing 5 epochs
     model_checkpoint = cb.ModelCheckpoint(
-        filename='best', monitor='val_loss', mode='min',  # save the minimum val_loss
+        filename='best', monitor='val/loss', mode='min',  # save the minimum val_loss
     )
 
     trainer = pl.Trainer(

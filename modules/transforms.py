@@ -39,5 +39,5 @@ class CustomToTensor(Module):
         """
         :param input: can be the input ids or the attention_mask
         """
-        res = self.tensor(input, requires_grad=False)
+        res = self.tensor(input)
         return res
