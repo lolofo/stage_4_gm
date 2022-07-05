@@ -468,6 +468,7 @@ if __name__ == '__main__':
     #############################
     ### training of the model ###
     #############################
+    dm.prepare_data()
     dm.setup(stage='fit')
     trainer.fit(model, datamodule=dm)
 
