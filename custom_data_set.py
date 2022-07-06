@@ -46,11 +46,15 @@ class SnliDataset(Dataset):
     def __init__(self, dir=train_dir,
                  nb_sentences=100,
                  keep_neutral=False,
+                 only_label=None,
                  msg=True):
         '''
         initiation of the dataset :
             - the default parameter here are for the training
         '''
+
+        if only_label == "neutral" and not keep_neutral:
+            raise Exception("skip and keep error: None dataset production congratulation !")
 
         buff = pd.read_csv(dir, sep="\t")
 
@@ -67,16 +71,22 @@ class SnliDataset(Dataset):
         for i in range(nb_sent):
             try:
                 if keep_neutral:
-                    sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
-                    labels.append(label[i])
-
-                else:
-                    if label[i] != "neutral":
+                    if only_label is not None and label[i] == only_label:
+                        sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
+                        labels.append(label[i])
+                    else:
                         sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
                         labels.append(label[i])
 
+                else:
+                    if label[i] != "neutral":
+                        if only_label is not None and label[i] == only_label:
+                            sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
+                            labels.append(label[i])
+                        else:
+                            sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
+                            labels.append(label[i])
             except:
-
                 if msg:
                     print("sent 1 : ", sentence1[i], end="  ===  ")
                     print("sent 2 : ", sentence2[i], end="  ===  ")

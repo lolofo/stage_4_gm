@@ -1,18 +1,19 @@
+import argparse
+
 import torch
 from tqdm import tqdm
+import os
+from os import path
 
 from training_bert import BertNliLight
 from custom_data_set import SnliDataset
 from custom_data_set import test_dir, dev_dir
 from torch.utils.data import DataLoader
 
-from os import path
-
-import os
-from os import path
 import matplotlib.pyplot as plt
 from attention_algorithms.attention_metrics import default_plot_colormap
 from torch_set_up import DEVICE
+from custom_data_set import oh_labels
 
 
 # set the repository to the git repository
@@ -30,7 +31,7 @@ def main_prepare():
 
     return os.getcwd(), graph_folder
 
-
+# gradient calculus methods
 def get_gradient(layer: int = 0):
     grad_q = model.bert.encoder.layer[layer].attention.self.query.weight.grad
     grad_k = model.bert.encoder.layer[layer].attention.self.key.weight.grad
@@ -55,9 +56,15 @@ def get_max_gradient(layer: int = 0):
     return torch.norm(torch.tensor([norm_q, norm_k, norm_v]))
 
 
-# load the data
 if __name__ == "__main__":
-    # prepare the environment for the
+    ##################################################################################
+    ### which class has the most contribution and which class influence each layer ###
+    ##################################################################################
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-lb', '--label', type=str, default="entailment")
+    args = parser.parse_args()
+
     c, graph_folder = main_prepare()
     os.chdir(c)
 
@@ -68,14 +75,12 @@ if __name__ == "__main__":
     ckp = path.join(".cache", "logs", "igrida_trained", "0", "best.ckpt")
     model = BertNliLight.load_from_checkpoint(ckp)
     model = model.train()
+    model.to(DEVICE)
 
+    data_set = SnliDataset(dir=test_dir, nb_sentences=10000, msg=False, keep_neutral=True, only_label=args.label)
+    data_loader = DataLoader(data_set, batch_size=4, shuffle=False)
     gradient_map = torch.zeros((12, 1)).to(DEVICE)
     gradient_max_map = torch.zeros((12, 1)).to(DEVICE)
-
-    # load the data
-    data_set = SnliDataset(dir=test_dir, nb_sentences=10000, msg=False, keep_neutral=True)
-    data_loader = DataLoader(data_set, batch_size=4, shuffle=False)
-    model.to(DEVICE)
 
     for batch in tqdm(data_loader):
         # at each epoch put the gradient to zero to avoid cumulated gradient
@@ -103,7 +108,7 @@ if __name__ == "__main__":
                                 ylabel="Layer",
                                 title="Gradient MAP")
 
-    plt.savefig(os.path.join(graph_folder, "gradient_map.png"))
+    plt.savefig(os.path.join(graph_folder, f"gradient_map_{args.label}.png"))
 
     gradient_max_map = (gradient_max_map / len(data_set) * 4).cpu().detach().numpy()
     fig = default_plot_colormap(gradient_max_map,
@@ -111,4 +116,4 @@ if __name__ == "__main__":
                                 ylabel="Layer",
                                 title="Gradient MAP")
 
-    plt.savefig(os.path.join(graph_folder, "gradient_max_map.png"))
+    plt.savefig(os.path.join(graph_folder, f"gradient_max_map_{args.label}.png"))
