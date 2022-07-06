@@ -155,8 +155,7 @@ class BertNliRegu(pl.LightningModule):
     # at the end of
 
     def on_train_start(self):
-        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc':0}
-
+        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc': 0}
         self.logger.log_hyperparams(self.hparams, init_hp_metrics)
 
     def training_step(self, train_batch, batch_idx):
@@ -171,7 +170,7 @@ class BertNliRegu(pl.LightningModule):
         # calculation of the loss
         reg_term = self.entropy_regu(outputs=outputs,
                                      input_ids=input_ids)
-        loss = self.criterion(logits, labels)  # + self.reg_mul * reg_term["pen"]
+        loss = self.criterion(logits, labels) + self.reg_mul * reg_term["pen"]
 
         class_pred = torch.softmax(logits, dim=1)
         # calculus of the attention score for the auc --> see the evolution of the auc through the epochs
