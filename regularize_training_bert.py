@@ -154,6 +154,11 @@ class BertNliRegu(pl.LightningModule):
 
     # at the end of
 
+    def on_train_start(self):
+        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc':0}
+
+        self.logger.log_hyperparams(self.hparams, init_hp_metrics)
+
     def training_step(self, train_batch, batch_idx):
         input_ids = train_batch["input_ids"]
         attention_mask = train_batch["attention_masks"]
