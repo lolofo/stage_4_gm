@@ -53,20 +53,20 @@ class BertNliRegu(pl.LightningModule):
 
     """
 
-    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss(), reg_mul=0):
+    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss(),
+                 reg_mul=0,
+                 lr=5e-5):
         super().__init__()
 
         self.save_hyperparameters("reg_mul")
 
-        self.lr = 3e-4
+        self.lr = lr
 
         # bert layer
         # the bert layer will return the layer will return the attention weights
         self.bert = BertModel.from_pretrained('bert-base-uncased',
                                               output_attentions=True  # return the attention weights
                                               )
-
-        self.bert_output = None
 
         # classifier head
         self.classifier = nn.Sequential(
@@ -104,7 +104,7 @@ class BertNliRegu(pl.LightningModule):
         '''
         define the optimizer for the training
         '''
-        optimizer = AdamW(self.parameters(), lr=5e-5)
+        optimizer = AdamW(self.parameters(), lr=self.lr)
 
         return optimizer
 
@@ -113,8 +113,6 @@ class BertNliRegu(pl.LightningModule):
     ######################
 
     # calculation of the regularization term
-    # TODO : update the function to have a dictionnary for the output
-    # TODO : update the function to have a rgularization on some layers
     def entropy_regu(self,
                      outputs,
                      input_ids):
@@ -420,6 +418,7 @@ if __name__ == '__main__':
 
     # config for the regularization
     parser.add_argument('--reg_mul', type=float, default=0)  # the regularize terms
+    parser.add_argument('--lrate', type=float, default=5e-5)
 
     args = parser.parse_args()
 
@@ -444,7 +443,8 @@ if __name__ == '__main__':
     model = None
     if args.model_type == 1:
         model = BertNliRegu(criterion=nn.CrossEntropyLoss(),
-                            reg_mul=args.reg_mul)
+                            reg_mul=args.reg_mul,
+                            lr=args.lrate)
 
     ######################
     ### trainer config ###
@@ -464,7 +464,7 @@ if __name__ == '__main__':
     early_stopping = cb.EarlyStopping(monitor="val_/loss", patience=5, verbose=args.exp,
                                       mode='min')
     model_checkpoint = cb.ModelCheckpoint(
-        filename='best.pt', monitor="val_/loss", mode='min',  # save the minimum val_loss
+        filename='best', monitor="val_/loss", mode='min',  # save the minimum val_loss
     )
 
     trainer = pl.Trainer(
