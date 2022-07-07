@@ -55,10 +55,12 @@ class BertNliRegu(pl.LightningModule):
 
     def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss(),
                  reg_mul=0,
-                 lr=5e-5):
+                 reg_lay: int = -1,
+                 lr=5e-5,
+                 exp: bool = False):
         super().__init__()
-
-        self.save_hyperparameters("reg_mul")
+        self.exp = exp
+        self.save_hyperparameters("reg_mul", ignore=["exp"])
 
         self.lr = lr
 
@@ -77,7 +79,7 @@ class BertNliRegu(pl.LightningModule):
         # multiplier of the reg term
         # if this term is high >> high regularization
         self.reg_mul = reg_mul
-        self.reg_lay = None  # the layers on which we will apply the regularization
+        self.reg_lay = reg_lay
 
         ### METRICS ###
         self.train_acc = Accuracy(num_class=3)
@@ -101,55 +103,66 @@ class BertNliRegu(pl.LightningModule):
         return {"logits": logits, "outputs": output}
 
     def configure_optimizers(self):
-        '''
-        define the optimizer for the training
-        '''
         optimizer = AdamW(self.parameters(), lr=self.lr)
-
         return optimizer
 
     ######################
     ### training steps ###
     ######################
-
-    # calculation of the regularization term
-    def entropy_regu(self,
-                     outputs,
-                     input_ids):
-        # calculate the entropia terms based on the outputs
-        # outputs >> bert output form
+    def layer_reg(self,
+                  outputs,
+                  input_ids,
+                  layer: int = 2):
+        """Regularize the network layer by layer
+        """
+        # the mask , mask == 1 <==> special token
         spe_ids = torch.tensor([0, 101, 102]).to(self.device)
-        # indexes of the specials tokens for the bert tokenizer
-
-        # logical mask
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
-        # we repeat the mask along the different axes of the heads and the different
-        mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)
-
-        # shape [batch, layer, head, T = 150, T=150]
-        attention_tensor = torch.stack(outputs.attentions,
-                                       dim=1)
-
-        # attention score for each head of each layer
-        # shape of [b, l, h, T = 150] we have a score for each sentences
-        as_scores = attention_tensor.sum(dim=3)
-
-        buff = torch.mul(as_scores, 1 - mask).sum(dim=1).sum(dim=1)
+        mask = mask.unsqueeze(1).repeat(1, 12, 1)
+        # the attention
+        attention_tensor = outputs.attentions[layer]  # --> select the correct layer
+        as_scores = attention_tensor.sum(dim=2)
+        # comparison with the auc
+        as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
+        etp_scores = -as_scores * torch.log(as_scores + EPS * mask)
+        pen = etp_scores.mean()
+        # for the AUC --> comp with the agregation of all the heads
+        mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device) \
+            .unsqueeze(1).unsqueeze(1) \
+            .repeat(1, 12, 12, 1)
+        buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
+            .sum(dim=1).sum(dim=1)
         mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
         maxs = buff.max(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+        # return the different results
+        return {"pen": pen,
+                "scores": (buff - mins) / (maxs - mins)}
 
-        # with the new dimensions we perform the mask >> remove of the special tokens
-        # as_scores = torch.mul(as_scores, mask)
+    # calculation of the regularization term
+    def model_regu(self,
+                   outputs,
+                   input_ids):
+        # create the mask --> mask = 1 <=> special token
+        spe_ids = torch.tensor([0, 101, 102]).to(self.device)
+        mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
+        mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)
+        # cerate the attention map
+        attention_tensor = torch.stack(outputs.attentions,
+                                       dim=1)
+        as_scores = attention_tensor.sum(dim=3)
+        # the entropia calculus
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
-
-        # calculation of the entropia
-        # as_scores [b, l, h, T]
         etp_scores = -as_scores * torch.log(as_scores + EPS * mask)
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
 
-        res = etp_scores.sum() / (etp_scores.shape[0] * etp_scores.shape[1] * etp_scores.shape[2])
+        pen = etp_scores.mean()
 
-        return {"pen": res,
+        # for the AUC calculus compute the heads agregation
+        buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
+            .sum(dim=1).sum(dim=1)
+        mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+        maxs = buff.max(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+        return {"pen": pen,
                 "scores": (buff - mins) / (maxs - mins)}
 
     # at the end of
@@ -167,10 +180,19 @@ class BertNliRegu(pl.LightningModule):
         logits = buff["logits"]
         outputs = buff["outputs"]
 
-        # calculation of the loss
-        reg_term = self.entropy_regu(outputs=outputs,
-                                     input_ids=input_ids)
-        loss = self.criterion(logits, labels) + self.reg_mul * reg_term["pen"]
+        loss = self.criterion(logits, labels)  # the loss based on the criterion
+        reg_term = None
+        if self.reg_lay > 0:
+            # we regularize one given layer
+            reg_term = self.layer_reg(outputs=outputs,
+                                      input_ids=input_ids,
+                                      layer=self.reg_lay)
+        else:
+            # we regularize all the layers
+            reg_term = self.model_regu(outputs=outputs,
+                                       input_ids=input_ids)
+
+        loss += self.reg_mul * reg_term["pen"]
 
         class_pred = torch.softmax(logits, dim=1)
         # calculus of the attention score for the auc --> see the evolution of the auc through the epochs
@@ -214,9 +236,10 @@ class BertNliRegu(pl.LightningModule):
 
     def end_epoch(self, stage):
         d = dict()
-        d[f"{stage}_acc"] = round(eval(f"self.{stage}_acc").compute().item(), 4)
-        d[f"{stage}_auc"] = round(eval(f"self.{stage}_auc").compute().item(), 4)
-        log.info(f"Epoch : {self.current_epoch} >> {stage}_metrics >> {d}")
+        if self.exp:
+            d[f"{stage}_acc"] = round(eval(f"self.{stage}_acc").compute().item(), 4)
+            d[f"{stage}_auc"] = round(eval(f"self.{stage}_auc").compute().item(), 4)
+            log.info(f"Epoch : {self.current_epoch} >> {stage}_metrics >> {d}")
 
     def on_validation_epoch_end(self):
         return self.end_epoch(stage="val")
@@ -234,8 +257,8 @@ class BertNliRegu(pl.LightningModule):
 
         buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
-        reg_term = self.entropy_regu(outputs=buff["outputs"],
-                                     input_ids=input_ids)
+        reg_term = self.model_regu(outputs=buff["outputs"],
+                                   input_ids=input_ids)
 
         # some tools for the end_validation
         class_pred = torch.softmax(logits, dim=1)
@@ -293,7 +316,7 @@ class SNLIDataModule(pl.LightningDataModule):
         self.test_set = None
 
     def prepare_data(self):
-        warnings.warn("we process the data download it can be a bit long ...")
+        log.info("we process the data download it can be a bit long ...")
         download_e_snli_raw(self.cache)
         process_e_snli_data(self.cache)
 
@@ -346,9 +369,6 @@ class SNLIDataModule(pl.LightningDataModule):
 
     ## ======= PRIVATE SECTIONS ======= ##
     def collate(self, batch):
-        """
-        collate function modify the structure of a Batch
-        """
         batch = self.list2dict(batch)
         texts = self.t_add_sep(batch['premise'], batch['hypothesis'])
         input_ids, attention_mask = self.t_tokenize(texts)
@@ -387,7 +407,7 @@ def get_num_workers() -> int:
 
 
 if __name__ == '__main__':
-
+    init_logging()
     parser = argparse.ArgumentParser()
 
     # .cache folder >> the folder where everything will be saved
@@ -422,18 +442,15 @@ if __name__ == '__main__':
 
     # config for the regularization
     parser.add_argument('--reg_mul', type=float, default=0)  # the regularize terms
-    parser.add_argument('--lrate', type=float, default=5e-5)
+    parser.add_argument('--reg_lay', type=int, default=-1)  # the layer we want to regularize
+    parser.add_argument('--lrate', type=float, default=5e-5)  # the learning rate for the training part
 
     args = parser.parse_args()
-
-    # choosing the learning ate
-
-    init_logging()
-
     # Summary information
     log.info(f'>> workers: {args.num_workers}')
     log.info(f'>> nb_data: {args.nb_data}')
     log.info(f'>> reg_mul: {args.reg_mul}')
+    log.info(f'>> reg_lay: {args.reg_lay + 1}')
 
     # load the data for the training part
     dm = SNLIDataModule(
@@ -448,7 +465,9 @@ if __name__ == '__main__':
     if args.model_type == 1:
         model = BertNliRegu(criterion=nn.CrossEntropyLoss(),
                             reg_mul=args.reg_mul,
-                            lr=args.lrate)
+                            lr=args.lrate,
+                            reg_lay=args.reg_lay,
+                            exp=args.exp)
 
     ######################
     ### trainer config ###
