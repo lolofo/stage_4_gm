@@ -48,9 +48,9 @@ def get_max_gradient(layer: int = 0):
     grad_k = model.bert.encoder.layer[layer].attention.self.key.weight.grad
     grad_v = model.bert.encoder.layer[layer].attention.self.value.weight.grad
 
-    norm_q = grad_q.max()
-    norm_k = grad_k.max()
-    norm_v = grad_v.max()
+    norm_q = torch.max(grad_q)
+    norm_k = torch.max(grad_k.max())
+    norm_v = torch.max(grad_v.max())
 
     return torch.norm(torch.tensor([norm_q, norm_k, norm_v]))
 
@@ -76,6 +76,7 @@ if __name__ == "__main__":
     data_set = SnliDataset(dir=test_dir, nb_sentences=10000, msg=False, keep_neutral=True)
     data_loader = DataLoader(data_set, batch_size=4, shuffle=False)
     model.to(DEVICE)
+
 
     for batch in tqdm(data_loader):
         # at each epoch put the gradient to zero to avoid cumulated gradient

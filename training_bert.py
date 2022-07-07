@@ -25,6 +25,7 @@ from modules import transforms as t
 
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
+
 #############
 ### model ###
 #############
@@ -38,8 +39,11 @@ class BertNliLight(pl.LightningModule):
         super().__init__()
 
         # bert layer
-        # the bert layer will return the layer will return the attention weights
-        self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True)
+        # the bert layer will return the layer will return the attention weights.
+        # get also the hidden states of the model.
+        self.bert = BertModel.from_pretrained('bert-base-uncased',
+                                              output_hidden_states=True,
+                                              output_attentions=True)
 
         self.bert_output = None
 
@@ -62,12 +66,10 @@ class BertNliLight(pl.LightningModule):
         # the logits are the weights before the softmax.
         logits = self.classifier(cls_token)
 
-        return logits
-
-    # return the attention.
-    def _get_att_weight(self, input_ids, attention_mask, *args, **kwargs):
-        self.bert_output = self.bert(input_ids=input_ids, attention_mask=attention_mask, *args, **kwargs)
-        result = torch.clone(self.bert_output.attentions)
+        return {"logits": logits,
+                "hidden_states": output.hidden_states  # return the hidden states of the bert transformers
+                # for the gradient method
+                }
 
     def configure_optimizers(self):
         '''
@@ -83,7 +85,8 @@ class BertNliLight(pl.LightningModule):
 
     def training_step(self, train_batch, batch_idx):
         input_ids, attention_mask, labels = train_batch
-        logits = self(input_ids, attention_mask)
+        outputs = self.forward(input_ids, attention_mask)
+        logits = outputs["logits"]
 
         # calculation of the loss
         loss = self.criterion(logits, labels)

@@ -31,6 +31,7 @@ def main_prepare():
 
     return os.getcwd(), graph_folder
 
+
 # gradient calculus methods
 def get_gradient(layer: int = 0):
     grad_q = model.bert.encoder.layer[layer].attention.self.query.weight.grad
@@ -77,43 +78,49 @@ if __name__ == "__main__":
     model = model.train()
     model.to(DEVICE)
 
-    data_set = SnliDataset(dir=test_dir, nb_sentences=10000, msg=False, keep_neutral=True, only_label=args.label)
-    data_loader = DataLoader(data_set, batch_size=4, shuffle=False)
-    gradient_map = torch.zeros((12, 1)).to(DEVICE)
-    gradient_max_map = torch.zeros((12, 1)).to(DEVICE)
+    gradient_map = torch.zeros((12, 4)).to(DEVICE)
+    gradient_max_map = torch.zeros((12, 4)).to(DEVICE)
 
-    for batch in tqdm(data_loader):
-        # at each epoch put the gradient to zero to avoid cumulated gradient
-        model.zero_grad()
+    nb = 0
 
-        # forward pass
-        sentences, masks, labels = batch[0].to(DEVICE), batch[1].to(DEVICE), batch[2].to(DEVICE)
-        output = torch.softmax(model(sentences, masks), dim=-1)
-        loss = output[:, torch.argmax(labels)].sum()  # we sum to have a scalar valu to compute the gradient
+    lbs = [None, "entailment", "neutral", "contradiction"]
+    for i, labels in enumerate(lbs):
+        data_set = SnliDataset(dir=test_dir, nb_sentences=10000, msg=False, keep_neutral=True, only_label=labels)
+        print(">> len of the current dataset : ", len(data_set))
+        data_loader = DataLoader(data_set, batch_size=4, shuffle=False)
+        for batch in tqdm(data_loader):
+            # at each epoch put the gradient to zero to avoid cumulated gradient
+            model.zero_grad()
 
-        # backward pass
-        loss.backward()
+            # forward pass
+            sentences, masks, labels = batch[0].to(DEVICE), batch[1].to(DEVICE), batch[2].to(DEVICE)
+            output = torch.softmax(model(sentences, masks), dim=-1)
+            loss = output[:, torch.argmax(labels)].sum()  # we sum to have a scalar valu to compute the gradient
 
-        # gradient calculus
-        gradient_map[:, 0] = gradient_map[:, 0] + torch.tensor([get_gradient(layer=l) for l in range(12)]).to(DEVICE)
+            # backward pass
+            loss.backward()
 
-        gradient_max_map[:, 0] = gradient_max_map[:, 0] + torch.tensor(
-            [get_max_gradient(layer=l) for l in range(12)]
-        ).to(DEVICE)
+            # gradient calculus
+            gradient_map[:, i] = gradient_map[:, i] + torch.tensor([get_gradient(layer=l) for l in range(12)]).to(
+                DEVICE)
+
+            gradient_max_map[:, i] = gradient_max_map[:, i] + torch.tensor(
+                [get_max_gradient(layer=l) for l in range(12)]
+            ).to(DEVICE)
 
     # plot the figures
-    gradient_map = (gradient_map / len(data_set) * 4).cpu().detach().numpy()
+    gradient_map = (gradient_map / 10000 * 4).cpu().detach().numpy()
     fig = default_plot_colormap(gradient_map,
                                 xlabel="..",
                                 ylabel="Layer",
                                 title="Gradient MAP")
 
-    plt.savefig(os.path.join(graph_folder, f"gradient_map_{args.label}.png"))
+    plt.savefig(os.path.join(graph_folder, f"gradient_map_label.png"))
 
-    gradient_max_map = (gradient_max_map / len(data_set) * 4).cpu().detach().numpy()
+    gradient_max_map = (gradient_max_map / 10000 * 4).cpu().detach().numpy()
     fig = default_plot_colormap(gradient_max_map,
                                 xlabel="..",
                                 ylabel="Layer",
                                 title="Gradient MAP")
 
-    plt.savefig(os.path.join(graph_folder, f"gradient_max_map_{args.label}.png"))
+    plt.savefig(os.path.join(graph_folder, f"gradient_max_map_label.png"))

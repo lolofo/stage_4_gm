@@ -71,7 +71,8 @@ def softmax_normalization(tokens, attention: torch.tensor):
 def default_plot_colormap(map,
                           xlabel, ylabel, title,
                           xstick=None,
-                          sz=(10, 10)):
+                          sz=(10, 10),
+                          show_values = True):
     # the global figure
     fig = plt.figure(figsize=sz)
     plt.imshow(map, aspect='auto', cmap='Purples')
@@ -94,14 +95,15 @@ def default_plot_colormap(map,
     ax.set_yticklabels(y_label_list)
 
     # for each cell
-    for x_index in range(map.shape[1]):
-        for y_index in range(map.shape[0]):
-            label = None
-            if type(map[y_index, x_index]) == np.bool_:
-                label = str(map[y_index, x_index])
-            else:
-                label = str(np.round(map[y_index, x_index], 3))
-            ax.text(x_index, y_index, label, color='black', ha='center', va='center')
+    if show_values :
+        for x_index in range(map.shape[1]):
+            for y_index in range(map.shape[0]):
+                label = None
+                if type(map[y_index, x_index]) == np.bool_:
+                    label = str(map[y_index, x_index])
+                else:
+                    label = str(np.round(map[y_index, x_index], 3))
+                ax.text(x_index, y_index, label, color='black', ha='center', va='center')
 
     plt.grid()
     plt.colorbar()
