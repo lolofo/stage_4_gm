@@ -118,7 +118,7 @@ class BertNliRegu(pl.LightningModule):
         # the mask , mask == 1 <==> special token
         spe_ids = torch.tensor([0, 101, 102]).to(self.device)
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
-        mask = mask.unsqueeze(1).repeat(1, 12, 1)  # repeat the mask over the different heads (just one layer)
+        mask = mask.unsqueeze(1).repeat(1, 12, 1)
         # the attention
         attention_tensor = outputs.attentions[
             layer
@@ -130,7 +130,7 @@ class BertNliRegu(pl.LightningModule):
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
         log.debug(f">> check the dimensions : {as_scores.shape == mask.shape}")
         log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
-        log.debug(f">> 0 values after softmax : {(torch.masked_select(as_scores, (1-mask) > 0) < 0).any()}")
+        log.debug(f">> < 0 values after softmax : {(torch.masked_select(as_scores, (1-mask) > 0) < 0).any()}")
         etp_scores = - as_scores * torch.log(as_scores + EPS * mask)  # compute the different
         log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)
