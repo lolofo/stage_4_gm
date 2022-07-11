@@ -18,7 +18,11 @@ echo
 echo =============== RUN ${OAR_JOB_ID} ===============
 echo Run $EXEC_FILE at `date +"%T, %d-%m-%Y"`
 
-python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.001  --version reg_mul=test --exp
+# if --reg_lay == -1 ==> regularize all the model
+# /!\ if --reg-lay == i we regularize the layer i+1
+
+
+python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_lay 2 --reg_mul 0.0001  --version reg_mul=test --exp
 #python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.0  --version reg_mul=0.0 --exp
 #python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.001  --version reg_mul=0.1 --exp
 #python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.2  --version reg_mul=0.2 --exp
