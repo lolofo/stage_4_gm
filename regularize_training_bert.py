@@ -118,14 +118,22 @@ class BertNliRegu(pl.LightningModule):
         # the mask , mask == 1 <==> special token
         spe_ids = torch.tensor([0, 101, 102]).to(self.device)
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
-        mask = mask.unsqueeze(1).repeat(1, 12, 1)
+        mask = mask.unsqueeze(1).repeat(1, 12, 1)  # repeat the mask over the different heads (just one layer)
         # the attention
-        attention_tensor = outputs.attentions[layer]  # --> select the correct layer
-        as_scores = attention_tensor.sum(dim=2)
-        # comparison with the auc
-        as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
-        etp_scores = -as_scores * torch.log(as_scores + EPS * mask)
+        attention_tensor = outputs.attentions[
+            layer
+        ]  # --> select the correct layer shape [batch, heads, MAX_PAD, MAX_PAD]
+        as_scores = attention_tensor.sum(
+            dim=len(attention_tensor.shape) - 2
+        )  # --> sum over the lines to have a distribution
+        as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
+        log.debug(f">> as_scores : {torch.isnan(as_scores)}")
+        etp_scores = -as_scores * torch.log(as_scores + EPS * mask)  # compute the different
+        log.debug(f">> etp_scores : {torch.isnan(etp_scores)}")
+        etp_scores = etp_scores.sum(dim=-1)
         pen = etp_scores.mean()
+        log.debug(f">> pen : {torch.isnan(pen)}")
+
         # for the AUC --> comp with the agregation of all the heads
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device) \
             .unsqueeze(1).unsqueeze(1) \
@@ -134,7 +142,7 @@ class BertNliRegu(pl.LightningModule):
             .sum(dim=1).sum(dim=1)
         mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
         maxs = buff.max(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
-        # return the different results
+
         return {"pen": pen,
                 "scores": (buff - mins) / (maxs - mins)}
         
@@ -146,17 +154,20 @@ class BertNliRegu(pl.LightningModule):
         # create the mask --> mask = 1 <=> special token
         spe_ids = torch.tensor([0, 101, 102]).to(self.device)
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
-        mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)
+        mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)  # for the mask we have all the layers.
         # cerate the attention map
-        attention_tensor = torch.stack(outputs.attentions,
-                                       dim=1)
-        as_scores = attention_tensor.sum(dim=3)
+        attention_tensor = torch.stack(outputs.attentions, dim=1)
+        as_scores = attention_tensor.sum(
+            dim=len(attention_tensor.shape) - 2
+        )
         # the entropia calculus
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
+        log.debug(f">> as_scores : {torch.isnan(as_scores)}")
         etp_scores = -as_scores * torch.log(as_scores + EPS * mask)
+        log.debug(f">> etp_scores : {torch.isnan(etp_scores)}")
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
-
         pen = etp_scores.mean()
+        log.debug(f">> pen : {torch.isnan(pen)}")
 
         # for the AUC calculus compute the heads agregation
         buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
@@ -237,10 +248,11 @@ class BertNliRegu(pl.LightningModule):
 
     def end_epoch(self, stage):
         d = dict()
-        if self.exp:
-            d[f"{stage}_acc"] = round(eval(f"self.{stage}_acc").compute().item(), 4)
-            d[f"{stage}_auc"] = round(eval(f"self.{stage}_auc").compute().item(), 4)
-            log.info(f"Epoch : {self.current_epoch} >> {stage}_metrics >> {d}")
+        # don't show all the logs in non-exp mod
+        # save some memory for the logs
+        d[f"{stage}_acc"] = round(eval(f"self.{stage}_acc").compute().item(), 4)
+        d[f"{stage}_auc"] = round(eval(f"self.{stage}_auc").compute().item(), 4)
+        log.info(f"Epoch : {self.current_epoch} >> {stage}_metrics >> {d}")
 
     def on_validation_epoch_end(self):
         return self.end_epoch(stage="val")
@@ -408,7 +420,6 @@ def get_num_workers() -> int:
 
 
 if __name__ == '__main__':
-    init_logging()
     parser = argparse.ArgumentParser()
 
     # .cache folder >> the folder where everything will be saved
@@ -447,6 +458,12 @@ if __name__ == '__main__':
     parser.add_argument('--lrate', type=float, default=5e-5)  # the learning rate for the training part
 
     args = parser.parse_args()
+
+    if not args.exp:
+        init_logging(color=False, cache_path=os.path.join(args.log_dir), oar_id="log_file_test")
+    else:
+        init_logging()
+
     # Summary information
     log.info(f'>> workers: {args.num_workers}')
     log.info(f'>> nb_data: {args.nb_data}')
@@ -505,7 +522,6 @@ if __name__ == '__main__':
     #############################
     ### training of the model ###
     #############################
-    dm.prepare_data()
     dm.setup(stage='fit')
     trainer.fit(model, datamodule=dm)
 
@@ -515,4 +531,4 @@ if __name__ == '__main__':
         datamodule=dm
     )
     log.info(f"performance of the model : {performance[0]}")
-    print('Training finished')
+    log.info('Training finished')

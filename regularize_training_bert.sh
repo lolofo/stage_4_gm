@@ -18,6 +18,9 @@ echo
 echo =============== RUN ${OAR_JOB_ID} ===============
 echo Run $EXEC_FILE at `date +"%T, %d-%m-%Y"`
 
+# if --reg_lay == -1 ==> regularize all the model
+# /!\ if --reg-lay == i we regularize the layer i+1
+
 python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.0  --version mul=0.0_layer=3 --exp --reg_lay 3
 python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.2  --version mul=0.2_layer=3 --exp --reg_lay 3
 python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.3  --version mul=0.3_layer=3 --exp --reg_lay 3
@@ -28,5 +31,6 @@ python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --exp
 python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.8  --version mul=0.8_layer=3 --exp --reg_lay 3
 python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 0.9  --version mul=0.9_layer=3 --exp --reg_lay 3
 python $EXEC_FILE -e 50 -b 32 -d $RUNDIR/loic/dataset -s $RUNDIR/loic/logs --experiment bert_reg_nli --reg_mul 1.0  --version mul=1.0_layer=3 --exp --reg_lay 3
+
 
 echo Script ended
