@@ -128,6 +128,7 @@ class BertNliRegu(pl.LightningModule):
         )  # --> sum over the lines to have a distribution
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
         log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
+        log.debug(f">> as_scores : {(torch.masked_select(as_scores, (1-mask) > 0)<=0).any()}")
         etp_scores = -as_scores * torch.log(as_scores + EPS * mask)  # compute the different
         log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)
@@ -157,13 +158,14 @@ class BertNliRegu(pl.LightningModule):
         mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)  # for the mask we have all the layers.
         # cerate the attention map
         attention_tensor = torch.stack(outputs.attentions, dim=1)
+
         as_scores = attention_tensor.sum(
             dim=len(attention_tensor.shape) - 2
         )
         # the entropia calculus
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
         log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
-        etp_scores = -as_scores * torch.log(as_scores + EPS * mask)
+        etp_scores = - as_scores * torch.log(as_scores + EPS * mask)
         log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
         pen = etp_scores.mean()
