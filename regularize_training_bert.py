@@ -131,7 +131,7 @@ class BertNliRegu(pl.LightningModule):
         log.debug(f">> check the dimensions : {as_scores.shape == mask.shape}")
         log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
         log.debug(f">> < 0 values after softmax : {(torch.masked_select(as_scores, (1-mask) > 0) < 0).any()}")
-        etp_scores = - as_scores * torch.log(as_scores + EPS * mask)  # compute the different
+        etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
         log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)
         pen = etp_scores.mean()
