@@ -126,10 +126,12 @@ class BertNliRegu(pl.LightningModule):
         as_scores = attention_tensor.sum(
             dim=len(attention_tensor.shape) - 2
         )  # --> sum over the lines to have a distribution
+        log.debug(f">> as_scores shape : {as_scores.shape}")
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
+        log.debug(f">> check the dimensions : {as_scores.shape == mask.shape}")
         log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
-        log.debug(f">> as_scores : {(torch.masked_select(as_scores, (1-mask) > 0)<=0).any()}")
-        etp_scores = -as_scores * torch.log(as_scores + EPS * mask)  # compute the different
+        log.debug(f">> 0 values after softmax : {(torch.masked_select(as_scores, (1-mask) > 0) < 0).any()}")
+        etp_scores = - as_scores * torch.log(as_scores + EPS * mask)  # compute the different
         log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)
         pen = etp_scores.mean()

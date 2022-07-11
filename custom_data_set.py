@@ -62,7 +62,7 @@ class SnliDataset(Dataset):
 
         sentence1 = buff.sentence1
         sentence2 = buff.sentence2
-        label = buff.label1
+        label = buff.gold_label
 
         # some preprocessing
         sentences = []
