@@ -32,10 +32,10 @@ test_dir = path.join(data_dir, 'snli_1.0_test.txt')
 # max_pad --> padding for the tokenizer
 max_pad = 150
 
-# our one hot encoding for the variable
-oh_labels = {'entailment': "[1,0,0]",
-             'contradiction': "[0,1,0]",
-             'neutral': "[0,0,1]"}
+# same encoding as for the snli dataset on huggin face.
+oh_labels = {'entailment': "0",
+             'contradiction': "2",
+             'neutral': "1"}
 
 
 class SnliDataset(Dataset):
@@ -47,7 +47,8 @@ class SnliDataset(Dataset):
                  nb_sentences=100,
                  keep_neutral=False,
                  only_label=None,
-                 msg=True):
+                 msg=True,
+                 skeep_sep=False):
         '''
         initiation of the dataset :
             - the default parameter here are for the training
@@ -70,7 +71,7 @@ class SnliDataset(Dataset):
 
         for i in range(nb_sent):
             try:
-                if keep_neutral:
+                if keep_neutral and label[i] != "-":
                     if only_label is not None and label[i] == only_label:
                         sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
                         labels.append(label[i])
@@ -79,7 +80,7 @@ class SnliDataset(Dataset):
                         labels.append(label[i])
 
                 else:
-                    if label[i] != "neutral":
+                    if label[i] != "neutral" and label[i] != "-":
                         if only_label is not None and label[i] == only_label:
                             sentences.append(sentence1[i] + " [SEP] " + sentence2[i])
                             labels.append(label[i])
@@ -99,7 +100,13 @@ class SnliDataset(Dataset):
         t = tokenizer(sentences[0:n], padding="max_length", max_length=max_pad, truncation=True)
 
         self.ids = t.input_ids
-        self.attention_mask = t.attention_mask
+        buff = t.attention_mask
+        for sent in range(n):
+            for t in range(150):
+                if skeep_sep and self.ids[sent][t] == 102:
+                    buff[sent][t] = 0
+
+        self.attention_mask = buff.copy()
 
         labels = labels[0:n]
         buff = pd.Series(labels)
