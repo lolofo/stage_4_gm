@@ -137,6 +137,7 @@ class BertNliRegu(pl.LightningModule):
         # return the different results
         return {"pen": pen,
                 "scores": (buff - mins) / (maxs - mins)}
+        
 
     # calculation of the regularization term
     def model_regu(self,
