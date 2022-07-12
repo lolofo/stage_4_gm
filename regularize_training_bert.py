@@ -60,7 +60,7 @@ class BertNliRegu(pl.LightningModule):
                  exp: bool = False):
         super().__init__()
         self.exp = exp
-        self.save_hyperparameters("reg_mul", ignore=["exp"])
+        self.save_hyperparameters("reg_mul", "reg_lay", ignore=["exp"])
 
         self.lr = lr
 
@@ -126,16 +126,10 @@ class BertNliRegu(pl.LightningModule):
         as_scores = attention_tensor.sum(
             dim=len(attention_tensor.shape) - 2
         )  # --> sum over the lines to have a distribution
-        log.debug(f">> as_scores shape : {as_scores.shape}")
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
-        log.debug(f">> check the dimensions : {as_scores.shape == mask.shape}")
-        log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
-        log.debug(f">> < 0 values after softmax : {(torch.masked_select(as_scores, (1-mask) > 0) < 0).any()}")
         etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
-        log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)
         pen = etp_scores.mean()
-        log.debug(f">> pen : {torch.isnan(pen)}")
 
         # for the AUC --> comp with the agregation of all the heads
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device) \
@@ -166,12 +160,9 @@ class BertNliRegu(pl.LightningModule):
         )
         # the entropia calculus
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
-        log.debug(f">> as_scores : {torch.isnan(as_scores).any()}")
         etp_scores = - as_scores * torch.log(as_scores + EPS * mask)
-        log.debug(f">> etp_scores : {torch.isnan(etp_scores).any()}")
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
         pen = etp_scores.mean()
-        log.debug(f">> pen : {torch.isnan(pen)}")
 
         # for the AUC calculus compute the heads agregation
         buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
