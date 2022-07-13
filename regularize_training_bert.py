@@ -1,12 +1,12 @@
 import argparse
 
 # import self as self
+import json
+
 import torch
 
 import pytorch_lightning as pl
-from datasets import load_dataset
 from e_snli_dataset import EsnliDataSet, MAX_PAD
-import warnings
 
 # download the data
 from dataset.esnli.e_snli_tok import process_e_snli_data
@@ -460,10 +460,7 @@ if __name__ == '__main__':
         init_logging()
 
     # Summary information
-    log.info(f'>> workers: {args.num_workers}')
-    log.info(f'>> nb_data: {args.nb_data}')
-    log.info(f'>> reg_mul: {args.reg_mul}')
-    log.info(f'>> reg_lay: {args.reg_lay + 1}')
+    log.info(f'>>> Arguments: {json.dumps(args, indent=4)}')
 
     # load the data for the training part
     dm = SNLIDataModule(
