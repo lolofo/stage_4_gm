@@ -23,9 +23,9 @@ def main_prepare():
 
     # the folder where we will save our data
     plots_folder = os.path.join(os.getcwd(), '.cache', 'plots')
-    graph_folder = path.join(plots_folder, "cls_sep")
-    if not path.exists(path.join(plots_folder, "cls_sep")):
-        os.mkdir(path.join(plots_folder, "cls_sep"))
+    graph_folder = path.join(plots_folder, "sep_cls_study")
+    if not path.exists(path.join(plots_folder, "sep_cls_study")):
+        os.mkdir(path.join(plots_folder, "sep_cls_study"))
 
     return os.getcwd(), graph_folder
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     x = []
     y = []
     hue = []
-    l = ["entailment", "contradiction", "neutral"]
+    l = ["entailment", "neutral", "contradiction"]
 
     data_set = SnliDataset(dir=test_dir, nb_sentences=1000, msg=False, keep_neutral=True)
     data_loader = DataLoader(data_set, batch_size=4, shuffle=True)
@@ -51,14 +51,13 @@ if __name__ == "__main__":
         for batch in tqdm(data_loader):
             sentences, masks, labels = batch[0].to(DEVICE), batch[1].to(DEVICE), batch[2].to(DEVICE)
             outputs = model(sentences, masks)
-            lb = torch.argmax(labels, dim=-1)  # get the class for every sentences --> have a good plot.
             for i in range(labels.shape[0]):
                 for lay in range(13):
                     baseline = outputs["hidden_states"][max(lay - 1, 0)][i, 0, :]
                     buff = outputs["hidden_states"][lay][i, 0, :]
                     x.append(f"layer {lay}")
                     y.append((torch.dot(buff, baseline) / (torch.norm(buff) * torch.norm(baseline))).item())
-                    hue.append(l[lb[i]])
+                    hue.append(l[labels[i]])
 
     sns.set_theme()
     fig = plt.figure(figsize=(10, 10))
