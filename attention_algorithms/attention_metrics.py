@@ -9,30 +9,34 @@ import matplotlib.pyplot as plt
 from attention_algorithms.raw_attention import RawAttention
 import tqdm
 
+SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
+
 
 ###############################
 ### normalize the attention ###
 ###############################
 
 # --> make a standard normalization of the attention weights
+# we delete the special tokens and after we do the normalisation
 def normalize_attention(tokens, attention):
     assert len(tokens) == len(attention), f'Length mismatch: f{len(tokens)} vs f{len(attention)}'
-
+    w_min = 1e30
     buff = []
     for i in range(len(attention)):
         if tokens[i] not in SPECIAL_TOKENS:
-            buff.append(float(attention[i].detach().numpy()))
+            buff.append(attention[i].item())
+            if w_min > attention[i]:
+                w_min = attention[i]
         else:
             # we now that there will be no attention on the special tokens
             buff.append(0)
     buff = torch.tensor(buff)
 
     w_min, w_max = torch.min(buff), torch.max(buff)
-
-    # In case of uniform: we do the normalization and after we delete the special tokens
     if w_min == w_max:
-        w_min = 0.
-    buff = (buff - w_min) / (w_max - w_min)
+        pass
+    else:
+        buff = (buff - w_min) / (w_max - w_min)
 
     return buff
 
@@ -72,7 +76,7 @@ def default_plot_colormap(map,
                           xlabel, ylabel, title,
                           xstick=None,
                           sz=(10, 10),
-                          show_values = True):
+                          show_values=True):
     # the global figure
     fig = plt.figure(figsize=sz)
     plt.imshow(map, aspect='auto', cmap='Purples')
@@ -95,7 +99,7 @@ def default_plot_colormap(map,
     ax.set_yticklabels(y_label_list)
 
     # for each cell
-    if show_values :
+    if show_values:
         for x_index in range(map.shape[1]):
             for y_index in range(map.shape[0]):
                 label = None
@@ -170,6 +174,7 @@ def combine_roc_curves(Y_test, probs,
 
     return fig
 
+
 ########################
 ### end of AUC study ###
 ########################
@@ -186,9 +191,6 @@ def combine_roc_curves(Y_test, probs,
 # some constants
 class LenException(Exception):
     pass
-
-
-SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
 
 
 # --> calculate the attention score
@@ -224,7 +226,6 @@ def attention_score(sentences, masks,
             quantiles[f"layer_{i}"][f"head_{j}"] = []
 
     nb_it = sentences.shape[0]
-    print(f">> start the calculus for {nb_it} sentences")
     for _, i in enumerate(tqdm.tqdm(range(nb_it))):
         j = 0
         # iteration through all the sentences
