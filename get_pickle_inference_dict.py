@@ -15,6 +15,7 @@ from torch_set_up import DEVICE
 
 from regularize_training_bert import SNLIDataModule
 from regularize_training_bert import BertNliRegu
+from training_bert import BertNliLight
 
 
 def get_num_workers() -> int:
@@ -64,8 +65,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    ckp = path.join(args.log_dir, f"reg_mul={args.reg_mul}", "best.ckpt")
-    model = BertNliRegu.load_from_checkpoint(ckp)
+    # load the model from the right checkpoint
+    model = None
+    if args.reg_mul == 0:
+        ckp = path.join(args.log_dir, f"0", "best.ckpt")
+        model = BertNliLight.load_from_checkpoint(ckp)
+    else:
+        ckp = path.join(args.log_dir, f"reg_mul={args.reg_mul}", "best.ckpt")
+        model = BertNliRegu.load_from_checkpoint(ckp)
+
     model.to(DEVICE)
     model = model.eval()
 
@@ -89,6 +97,7 @@ if __name__ == "__main__":
     IDS = []
     y = []
     y_hat = []
+    y_hat_bis = []
 
     d = {}
     test_loader = dm.test_dataloader()
@@ -105,43 +114,78 @@ if __name__ == "__main__":
 
             attention_tensor = torch.stack(output.attentions, dim=1)
             # sum over the lines and the heads
-            cls_lines = attention_tensor[:, :, :, 0, :].sum(dim=1).sum(dim=1) # --> we get the cls line at each
+            # no selection here
+            cls_lines = attention_tensor[:, :, :, 0, :].sum(dim=1).sum(dim=1)
 
             # replace the specials tokens by zero
-            cls_lines = torch.where(torch.isin(ids, spe_tok), cls_lines, 0)
+            cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
 
+            # when the min is calculated --> don't take into account the specials tokens
             buff = cls_lines.clone()
-            buff = torch.where(torch.isin(ids, spe_tok), cls_lines, 1e30) # get the min over the real tokens
+            buff = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), buff, 1e30)
+
             mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
             maxs = cls_lines.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
 
             cls_lines = (cls_lines - mins) / (maxs - mins)
-            cls_lines = torch.where(torch.isin(ids, spe_tok), cls_lines, 0)
+
+            # get back to zeros the specials tokens
+            cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
+
+            sum_agreg = attention_tensor[:, :, :, :, :].sum(dim=1).sum(dim=1).sum(dim=1)
+            # replace the specials tokens by zero
+            sum_agreg = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), sum_agreg, 0)
+
+            # when the min is calculated --> don't take into account the specials tokens
+            buff = sum_agreg.clone()
+            buff = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), buff, 1e30)
+
+            mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+            maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+
+            sum_agreg = (sum_agreg - mins) / (maxs - mins)
 
             y_hat.append(cls_lines.flatten())
+            y_hat_bis.append(sum_agreg.flatten())
             y.append(annot.flatten())
             IDS.append(ids.flatten())
 
         y = torch.concat(y, dim=0).cpu().numpy()
         y_hat = torch.concat(y_hat, dim=0).cpu().numpy()
+        y_hat_bis = torch.concat(y_hat_bis, dim=0).cpu().numpy()
+        IDS = torch.concat(IDS, dim=0).cpu().numpy()
 
     log.debug(f">> len(y) : {len(y)}")
     log.debug(f">> len(y_hat) : {len(y_hat)}")
-    log.debug(f">> ckeck dim : {len(y)==len(y_hat)}")
+    log.debug(f">> len(y_hat_bis) : {len(y_hat_bis)}")
+    log.debug(f">> IDS : {len(IDS)}")
+    log.debug(f">> ckeck dim : {len(y) == len(y_hat)}")
 
-    idx = np.where(IDS == 0)
+    idx = np.where(IDS == 0)[0]
+    log.debug(f">> where ids==0 : {len(idx)}")
     y = np.delete(y, idx)
     y_hat = np.delete(y_hat, idx)
+    y_hat_bis = np.delete(y_hat_bis, idx)
 
     log.info(">> after selection")
     log.debug(f">> len(y) : {len(y)}")
     log.debug(f">> len(y_hat) : {len(y_hat)}")
+    log.debug(f">> len(y_hat_bis) : {len(y_hat_bis)}")
 
     # creation of the pickle
+    log.info("pickle creation")
     d = {"y": y,
          "y_hat": y_hat}
 
     dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "cls_map.pickle")
+
+    with open(dir, "wb") as f:
+        pickle.dump(d, f)
+
+    d = {"y": y,
+         "y_hat": y_hat_bis}
+
+    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "sum_agreg_map.pickle")
 
     with open(dir, "wb") as f:
         pickle.dump(d, f)
