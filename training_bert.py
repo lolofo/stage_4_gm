@@ -67,8 +67,8 @@ class BertNliLight(pl.LightningModule):
         logits = self.classifier(cls_token)
 
         return {"logits": logits,
-                "hidden_states": output.hidden_states  # return the hidden states of the bert transformers
-                # for the gradient method
+                "hidden_states": output.hidden_states,
+                "outputs": output
                 }
 
     def configure_optimizers(self):
