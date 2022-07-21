@@ -132,14 +132,19 @@ class BertNliRegu(pl.LightningModule):
         etp_scores = etp_scores.sum(dim=-1)
         pen = etp_scores.mean() # mean over all the heads and the batch
 
-        # for the AUC --> comp with the agregation of all the heads
-        mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device) \
-            .unsqueeze(1).unsqueeze(1) \
-            .repeat(1, 12, 12, 1)
-        buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
-            .sum(dim=1).sum(dim=1)
-        mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
-        maxs = buff.max(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+        # --> for the AUC calculus
+        sum_agreg = attention_tensor[:, :, :, :].sum(dim=1).sum(dim=1)
+
+        # replace the specials tokens by zero
+        sum_agreg = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), sum_agreg, 0)
+
+        buff = sum_agreg.clone()
+        buff = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), buff, 1e30)
+
+        mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+        maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+
+        sum_agreg = (sum_agreg - mins) / (maxs - mins)
 
         return {"pen": pen,
                 "scores": (buff - mins) / (maxs - mins)}
@@ -167,12 +172,20 @@ class BertNliRegu(pl.LightningModule):
         pen = etp_scores.mean() # mean over all the heads and the layers (and the batch).
 
         # for the AUC calculus compute the heads agregation
-        buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
-            .sum(dim=1).sum(dim=1)
-        mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
-        maxs = buff.max(dim=-1)[0].unsqueeze(1).repeat(1, MAX_PAD)
+
+        sum_agreg = attention_tensor[:, :, :, :, :].sum(dim=1).sum(dim=1).sum(dim=1)
+        # replace the specials tokens by zero
+        sum_agreg = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), sum_agreg, 0)
+
+        buff = sum_agreg.clone()
+        buff = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), buff, 1e30)
+
+        mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+        maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+
+        sum_agreg = (sum_agreg - mins) / (maxs - mins)
         return {"pen": pen,
-                "scores": (buff - mins) / (maxs - mins)}
+                "scores": sum_agreg}
 
     # at the end of
 
@@ -457,7 +470,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if not args.exp:
-        init_logging(color=False, cache_path=os.path.join(args.log_dir, args.version), oar_id="log_file_test")
+        init_logging(color=False, cache_path=os.path.join(args.log_dir, args.experiment, args.version), oar_id="log_file_test")
     else:
         init_logging()
 
