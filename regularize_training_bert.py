@@ -125,11 +125,12 @@ class BertNliRegu(pl.LightningModule):
         ]  # --> select the correct layer shape [batch, heads, MAX_PAD, MAX_PAD]
         as_scores = attention_tensor.sum(
             dim=len(attention_tensor.shape) - 2
-        )  # --> sum over the lines to have a distribution
+        )
+        # --> sum over the lines to have a distribution
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
         etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
         etp_scores = etp_scores.sum(dim=-1)
-        pen = etp_scores.mean()
+        pen = etp_scores.mean() # mean over all the heads and the batch
 
         # for the AUC --> comp with the agregation of all the heads
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device) \
@@ -158,11 +159,12 @@ class BertNliRegu(pl.LightningModule):
         as_scores = attention_tensor.sum(
             dim=len(attention_tensor.shape) - 2
         )
+
         # the entropia calculus
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
-        etp_scores = - as_scores * torch.log(as_scores + EPS * mask)
+        etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
-        pen = etp_scores.mean()
+        pen = etp_scores.mean() # mean over all the heads and the layers (and the batch).
 
         # for the AUC calculus compute the heads agregation
         buff = torch.mul(torch.stack(outputs.attentions, dim=1).sum(dim=3), 1 - mask) \
@@ -455,12 +457,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if not args.exp:
-        init_logging(color=False, cache_path=os.path.join(args.log_dir), oar_id="log_file_test")
+        init_logging(color=False, cache_path=os.path.join(args.log_dir, args.version), oar_id="log_file_test")
     else:
         init_logging()
 
     # Summary information
-    log.info(f'>>> Arguments: {json.dumps(args, indent=4)}')
+    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
 
     # load the data for the training part
     dm = SNLIDataModule(
