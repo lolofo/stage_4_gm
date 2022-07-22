@@ -79,11 +79,11 @@ if __name__ == "__main__":
 
     init_logging(
         color=False,
-        cache_path=os.path.join(args.log_dir, f"reg_mul={args.reg_mul}"),
+        cache_path=os.path.join(cache, 'plots', f"reg_mul={args.reg_mul}"),
         oar_id=f"reg_mul_{args.reg_mul}"
     )
 
-    log.info(f'>> reg_mul : {args.reg_mul}')
+    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
 
     dm = SNLIDataModule(
         cache=args.data_dir,

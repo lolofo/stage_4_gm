@@ -53,10 +53,7 @@ class BertNliRegu(pl.LightningModule):
 
     """
 
-    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss(),
-                 reg_mul=0,
-                 reg_lay: int = -1,
-                 lr=5e-5,
+    def __init__(self, freeze_bert=False, criterion=nn.CrossEntropyLoss(), reg_mul=0, reg_lay: int = -1, lr=5e-5,
                  exp: bool = False):
         super().__init__()
         self.exp = exp
@@ -66,15 +63,13 @@ class BertNliRegu(pl.LightningModule):
 
         # bert layer
         # the bert layer will return the layer will return the attention weights
-        self.bert = BertModel.from_pretrained('bert-base-uncased',
-                                              output_attentions=True  # return the attention weights
+        self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True
+                                              # return the attention weights
                                               )
 
         # classifier head
-        self.classifier = nn.Sequential(
-            # fully connected layer
-            nn.Linear(in_features=768, out_features=3),
-        )
+        self.classifier = nn.Sequential(  # fully connected layer
+            nn.Linear(in_features=768, out_features=3), )
 
         # multiplier of the reg term
         # if this term is high >> high regularization
@@ -109,10 +104,7 @@ class BertNliRegu(pl.LightningModule):
     ######################
     ### training steps ###
     ######################
-    def layer_reg(self,
-                  outputs,
-                  input_ids,
-                  layer: int = 2):
+    def layer_reg(self, outputs, input_ids, layer: int = 2):
         """Regularize the network layer by layer
         """
         # the mask , mask == 1 <==> special token
@@ -121,16 +113,13 @@ class BertNliRegu(pl.LightningModule):
         mask = mask.unsqueeze(1).repeat(1, 12, 1)
         # the attention
         attention_tensor = outputs.attentions[
-            layer
-        ]  # --> select the correct layer shape [batch, heads, MAX_PAD, MAX_PAD]
-        as_scores = attention_tensor.sum(
-            dim=len(attention_tensor.shape) - 2
-        )
+            layer]  # --> select the correct layer shape [batch, heads, MAX_PAD, MAX_PAD]
+        as_scores = attention_tensor.sum(dim=len(attention_tensor.shape) - 2)
         # --> sum over the lines to have a distribution
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
         etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
         etp_scores = etp_scores.sum(dim=-1)
-        pen = etp_scores.mean() # mean over all the heads and the batch
+        pen = etp_scores.mean()  # mean over all the heads and the batch
 
         # --> for the AUC calculus
         sum_agreg = attention_tensor[:, :, :, :].sum(dim=1).sum(dim=1)
@@ -146,14 +135,10 @@ class BertNliRegu(pl.LightningModule):
 
         sum_agreg = (sum_agreg - mins) / (maxs - mins)
 
-        return {"pen": pen,
-                "scores": (buff - mins) / (maxs - mins)}
-        
+        return {"pen": pen, "scores": sum_agreg}
 
     # calculation of the regularization term
-    def model_regu(self,
-                   outputs,
-                   input_ids):
+    def model_regu(self, outputs, input_ids):
         # create the mask --> mask = 1 <=> special token
         spe_ids = torch.tensor([0, 101, 102]).to(self.device)
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
@@ -161,15 +146,13 @@ class BertNliRegu(pl.LightningModule):
         # cerate the attention map
         attention_tensor = torch.stack(outputs.attentions, dim=1)
 
-        as_scores = attention_tensor.sum(
-            dim=len(attention_tensor.shape) - 2
-        )
+        as_scores = attention_tensor.sum(dim=len(attention_tensor.shape) - 2)
 
         # the entropia calculus
         as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
         etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
-        pen = etp_scores.mean() # mean over all the heads and the layers (and the batch).
+        pen = etp_scores.mean()  # mean over all the heads and the layers (and the batch).
 
         # for the AUC calculus compute the heads agregation
 
@@ -184,8 +167,7 @@ class BertNliRegu(pl.LightningModule):
         maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
 
         sum_agreg = (sum_agreg - mins) / (maxs - mins)
-        return {"pen": pen,
-                "scores": sum_agreg}
+        return {"pen": pen, "scores": sum_agreg}
 
     # at the end of
 
@@ -206,13 +188,10 @@ class BertNliRegu(pl.LightningModule):
         reg_term = None
         if self.reg_lay > 0:
             # we regularize one given layer
-            reg_term = self.layer_reg(outputs=outputs,
-                                      input_ids=input_ids,
-                                      layer=self.reg_lay)
+            reg_term = self.layer_reg(outputs=outputs, input_ids=input_ids, layer=self.reg_lay)
         else:
             # we regularize all the layers
-            reg_term = self.model_regu(outputs=outputs,
-                                       input_ids=input_ids)
+            reg_term = self.model_regu(outputs=outputs, input_ids=input_ids)
 
         loss += self.reg_mul * reg_term["pen"]
 
@@ -220,10 +199,7 @@ class BertNliRegu(pl.LightningModule):
         # calculus of the attention score for the auc --> see the evolution of the auc through the epochs
 
         return {'loss': loss, 'preds': class_pred, 'target': labels, 'reg_term': reg_term["pen"],
-                'auc': (torch.flatten(reg_term["scores"]).clone().detach(),
-                        torch.flatten(train_batch["annotations"])
-                        )
-                }
+                'auc': (torch.flatten(reg_term["scores"]).clone().detach(), torch.flatten(train_batch["annotations"]))}
 
     def training_step_end(self, output):
         # update the metrics
@@ -280,17 +256,18 @@ class BertNliRegu(pl.LightningModule):
 
         buff = self.forward(input_ids, attention_mask)
         logits = buff["logits"]
-        reg_term = self.model_regu(outputs=buff["outputs"],
-                                   input_ids=input_ids)
+        outputs = buff["outputs"]
+        if self.reg_lay > 0:
+            # we regularize one given layer
+            reg_term = self.layer_reg(outputs=outputs, input_ids=input_ids, layer=self.reg_lay)
+        else:
+            # we regularize all the layers
+            reg_term = self.model_regu(outputs=outputs, input_ids=input_ids)
 
         # some tools for the end_validation
         class_pred = torch.softmax(logits, dim=1)
         return {'preds': class_pred, 'target': labels,
-                'auc': (
-                    torch.flatten(reg_term["scores"]).clone().detach(),
-                    torch.flatten(batch["annotations"])
-                )
-                }
+                'auc': (torch.flatten(reg_term["scores"]).clone().detach(), torch.flatten(batch["annotations"]))}
 
     def test_step_end(self, output):
         """ The test step
@@ -361,8 +338,7 @@ class SNLIDataModule(pl.LightningDataModule):
                 buff = EsnliDataSet(split="TRAIN", nb_data=self.nb_data,
                                     cache_path=os.path.join(self.cache, "cleaned_data"))
             else:
-                buff = EsnliDataSet(split="TRAIN", nb_data=-1,
-                                    cache_path=os.path.join(self.cache, "cleaned_data"))
+                buff = EsnliDataSet(split="TRAIN", nb_data=-1, cache_path=os.path.join(self.cache, "cleaned_data"))
             # 80% train 20% validation
             train_size = int(0.8 * len(buff))
             val_size = len(buff) - train_size
@@ -374,8 +350,7 @@ class SNLIDataModule(pl.LightningDataModule):
                 buff = EsnliDataSet(split="TEST", nb_data=self.nb_data,
                                     cache_path=os.path.join(self.cache, "cleaned_data"))
             else:
-                buff = EsnliDataSet(split="TEST", nb_data=-1,
-                                    cache_path=os.path.join(self.cache, "cleaned_data"))
+                buff = EsnliDataSet(split="TEST", nb_data=-1, cache_path=os.path.join(self.cache, "cleaned_data"))
             self.test_set = buff
 
     def train_dataloader(self):
@@ -400,8 +375,7 @@ class SNLIDataModule(pl.LightningDataModule):
         annotation = torch.stack(batch["annotation"], dim=0)
         labels = self.t_tensor(batch['label'])
 
-        return {"input_ids": input_ids, "attention_masks": attention_mask, "labels": labels,
-                "annotations": annotation}
+        return {"input_ids": input_ids, "attention_masks": attention_mask, "labels": labels, "annotations": annotation}
 
     # maybe not usefull here
     def list2dict(self, batch):
@@ -470,7 +444,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if not args.exp:
-        init_logging(color=False, cache_path=os.path.join(args.log_dir, args.experiment, args.version), oar_id="log_file_test")
+        init_logging(color=False, cache_path=os.path.join(args.log_dir, args.experiment, args.version),
+                     oar_id="log_file_test")
     else:
         init_logging()
 
@@ -478,20 +453,13 @@ if __name__ == '__main__':
     log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
 
     # load the data for the training part
-    dm = SNLIDataModule(
-        cache=args.data_dir,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        nb_data=args.nb_data
-    )
+    dm = SNLIDataModule(cache=args.data_dir, batch_size=args.batch_size, num_workers=args.num_workers,
+                        nb_data=args.nb_data)
     dm.prepare_data()  # load the different data
 
     model = None
     if args.model_type == 1:
-        model = BertNliRegu(criterion=nn.CrossEntropyLoss(),
-                            reg_mul=args.reg_mul,
-                            lr=args.lrate,
-                            reg_lay=args.reg_lay,
+        model = BertNliRegu(criterion=nn.CrossEntropyLoss(), reg_mul=args.reg_mul, lr=args.lrate, reg_lay=args.reg_lay,
                             exp=args.exp)
 
     ######################
@@ -500,31 +468,23 @@ if __name__ == '__main__':
 
     # set the direction to visualize the logs of the training
     # the visualization will be done with tensorboard.
-    logger = TensorBoardLogger(
-        save_dir=args.log_dir,  # the main log folder
-        name=args.experiment,  # name of the log >> related to the name of the model we use
-        version=args.version,  # version of the log
-        default_hp_metric=False  # deactivate hp_metric on tensorboard visualization
-    )
+    logger = TensorBoardLogger(save_dir=args.log_dir,  # the main log folder
+                               name=args.experiment,  # name of the log >> related to the name of the model we use
+                               version=args.version,  # version of the log
+                               default_hp_metric=False  # deactivate hp_metric on tensorboard visualization
+                               )
     # logger = TensorBoardLogger(name=args.log_dir, save_dir=log_dir + '/')
 
     # call back
-    early_stopping = cb.EarlyStopping(monitor="val_/loss", patience=5, verbose=args.exp,
-                                      mode='min')
-    model_checkpoint = cb.ModelCheckpoint(
-        filename='best', monitor="val_/loss", mode='min',  # save the minimum val_loss
-    )
+    early_stopping = cb.EarlyStopping(monitor="val_/loss", patience=5, verbose=args.exp, mode='min')
+    model_checkpoint = cb.ModelCheckpoint(filename='best', monitor="val_/loss", mode='min',  # save the minimum val_loss
+                                          )
 
-    trainer = pl.Trainer(
-        max_epochs=args.epoch,
-        accelerator=args.accelerator,  # auto use gpu
-        enable_progress_bar=not args.exp,  # hide progress bar in experimentation
-        log_every_n_steps=1,
-        default_root_dir=args.log_dir,
-        logger=logger,
-        callbacks=[early_stopping, model_checkpoint],
-        detect_anomaly=not args.exp
-    )
+    trainer = pl.Trainer(max_epochs=args.epoch, accelerator=args.accelerator,  # auto use gpu
+                         enable_progress_bar=not args.exp,  # hide progress bar in experimentation
+                         log_every_n_steps=1, default_root_dir=args.log_dir, logger=logger,
+                         callbacks=[early_stopping, model_checkpoint],
+                         detect_anomaly=not args.exp)
 
     #############################
     ### training of the model ###
@@ -533,9 +493,6 @@ if __name__ == '__main__':
     trainer.fit(model, datamodule=dm)
 
     dm.setup(stage='test')
-    performance = trainer.test(
-        ckpt_path='best',
-        datamodule=dm
-    )
+    performance = trainer.test(ckpt_path='best', datamodule=dm)
     log.info(f"performance of the model : {performance[0]}")
     log.info('Training finished')
