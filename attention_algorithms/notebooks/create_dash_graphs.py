@@ -91,7 +91,6 @@ if __name__ == "__main__":
     # img.anchor(ws.cell('A1'))
     ws.add_image(img, 'A1')
 
-
     ####################################################################################################################
     ####################################################################################################################
     ####################################################################################################################
@@ -124,10 +123,9 @@ if __name__ == "__main__":
 
         ax0.bar(list(range(len(ent))), ent)
         ax0.set_xticks(list(range(len(ent))))
-        ax0.set_xticklabels(["r="+str(x) for x in reg_mul_s], fontsize=8, rotation=45)
+        ax0.set_xticklabels(["r=" + str(x) for x in reg_mul_s], fontsize=8, rotation=45)
         ax0.set_title(met[i] + " -- sum_agreg")
         ax0.set_ylim(ylims[i][0], ylims[i][1])
-
 
         ax1.bar(list(range(len(cls))), cls)
         ax1.set_xticks(list(range(len(cls))))
@@ -162,7 +160,6 @@ if __name__ == "__main__":
     # img.anchor(ws.cell('A1'))
     ws.add_image(img, 'A1')
 
-
     ####################################################################################################################
     ####################################################################################################################
     ####################################################################################################################
@@ -189,8 +186,6 @@ if __name__ == "__main__":
                 ax.set_title(tl[k - 1] + " -- sum_agreg")
                 ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), prop={"size": 6})
                 k += 1
-
-
 
     rows = [19, 20, 21, 22, 23, 24, 25]
     for r in [0]:
@@ -230,7 +225,67 @@ if __name__ == "__main__":
     # img.anchor(ws.cell('A1'))
     ws.add_image(img, 'A1')
 
+    ####################################################################################################################
+    ####################################################################################################################
+    ####################################################################################################################
 
+    ###########################
+    # compare cls and sep map #
+    ###########################
+
+    cols = ["A", "B", "C", "D", "F"]
+    met = ["F1", "P", "R", "ROC", "AUPRC"]
+    ylims = [(0.2, 0.45), (0.2, 0.65), (0.2, 1), (0.5, 0.8), (0.25, 0.5)]
+    fig, axes = plt.subplots(5, 3, figsize=(30, 20))
+
+    for i in range(axes.shape[0]):
+        ax0 = axes[i, 0]  # ent
+        ax1 = axes[i, 1]  # cls
+        ax2 = axes[i, 2]
+
+        cls = []
+        sep = []
+        comb = []
+
+        ws = wb["sep_vs_cls_no_reg"]
+        cls.append(ws[cols[i] + str(3)].value)
+        sep.append(ws[cols[i] + str(6)].value)
+        comb.append(ws[cols[i] + str(9)].value)
+
+        ax0.bar(list(range(len(cls))), cls)
+        ax0.set_xticks(list(range(len(cls))))
+        ax0.set_xticklabels(["CLS"], fontsize=8, rotation=45)
+        ax0.set_title(met[i] + " -- CLS (baseline)")
+        ax0.set_ylim(ylims[i][0], ylims[i][1])
+
+        ax1.bar(list(range(len(sep))), sep)
+        ax1.set_xticks(list(range(len(sep))))
+        ax1.set_xticklabels(["SEP"], fontsize=8, rotation=60)
+        ax1.set_title(met[i] + " -- SEP")
+        ax1.set_ylim(ylims[i][0], ylims[i][1])
+
+        ax2.bar(list(range(len(comb))), comb)
+        ax2.set_xticks(list(range(len(comb))))
+        ax2.set_xticklabels(["COMB (SEP + CLS)"], fontsize=8, rotation=60)
+        ax2.set_title(met[i] + " -- SEP + CLS")
+        ax2.set_ylim(ylims[i][0], ylims[i][1])
+
+    plt.subplots_adjust(left=0.1,
+                        bottom=0.1,
+                        right=0.9,
+                        top=0.9,
+                        wspace=0.4,
+                        hspace=0.4)
+
+    plt.savefig(os.path.join(os.getcwd(), "buff4.png"))
+
+    ws = None
+
+    ws = wb.create_sheet("sep_vs_cls_no_reg")
+    ws = wb["sep_vs_cls_no_reg"]
+
+    img = openpyxl.drawing.image.Image(os.path.join(os.getcwd(), "buff4.png"))
+    ws.add_image(img, 'A14')
 
     wb.save(os.path.join(dir, "dash_board.xlsx"))
     wb.close()
@@ -238,3 +293,4 @@ if __name__ == "__main__":
     os.remove("buff.png")
     os.remove("buff2.png")
     os.remove("buff3.png")
+    os.remove("buff4.png")
