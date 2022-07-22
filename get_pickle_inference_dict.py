@@ -132,32 +132,16 @@ if __name__ == "__main__":
             # get back to zeros the specials tokens
             cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
 
-            sum_agreg = attention_tensor[:, :, :, :, :].sum(dim=1).sum(dim=1).sum(dim=1)
-            # replace the specials tokens by zero
-            sum_agreg = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), sum_agreg, 0)
-
-            # when the min is calculated --> don't take into account the specials tokens
-            buff = sum_agreg.clone()
-            buff = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), buff, 1e30)
-
-            mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
-            maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
-
-            sum_agreg = (sum_agreg - mins) / (maxs - mins)
-
             y_hat.append(cls_lines.flatten())
-            y_hat_bis.append(sum_agreg.flatten())
             y.append(annot.flatten())
             IDS.append(ids.flatten())
 
         y = torch.concat(y, dim=0).cpu().numpy()
         y_hat = torch.concat(y_hat, dim=0).cpu().numpy()
-        y_hat_bis = torch.concat(y_hat_bis, dim=0).cpu().numpy()
         IDS = torch.concat(IDS, dim=0).cpu().numpy()
 
     log.debug(f">> len(y) : {len(y)}")
     log.debug(f">> len(y_hat) : {len(y_hat)}")
-    log.debug(f">> len(y_hat_bis) : {len(y_hat_bis)}")
     log.debug(f">> IDS : {len(IDS)}")
     log.debug(f">> ckeck dim : {len(y) == len(y_hat)}")
 
@@ -170,7 +154,6 @@ if __name__ == "__main__":
     log.info(">> after selection")
     log.debug(f">> len(y) : {len(y)}")
     log.debug(f">> len(y_hat) : {len(y_hat)}")
-    log.debug(f">> len(y_hat_bis) : {len(y_hat_bis)}")
 
     # creation of the pickle
     log.info("pickle creation")

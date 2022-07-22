@@ -1,0 +1,158 @@
+# preparation of the environment
+from os import path
+import os
+import argparse
+import numpy as np
+
+from tqdm import tqdm
+
+
+from modules.logger import log, init_logging
+import torch
+import pickle
+import json
+
+from torch_set_up import DEVICE
+
+from regularize_training_bert import SNLIDataModule
+from regularize_training_bert import BertNliRegu
+from training_bert import BertNliLight
+
+def get_num_workers() -> int:
+    '''
+    Get maximum logical workers that a machine has
+    Args:
+        default (int): default value
+
+    Returns:
+        maximum workers number
+    '''
+    if hasattr(os, 'sched_getaffinity'):
+        try:
+            return len(os.sched_getaffinity(0))
+        except Exception:
+            pass
+
+    num_workers = os.cpu_count()
+    return num_workers if num_workers is not None else 0
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    # .cache folder >> the folder where everything will be saved
+    cache = path.join(os.getcwd(), '.cache')
+
+    parser.add_argument('-b', '--batch_size', type=int, default=4)
+
+    # default datadir >> ./.cache/dataset >> cache for our datamodule.
+    parser.add_argument('-d', '--data_dir', default=path.join(cache, 'raw_data', 'e_snli'))
+
+    # log_dir for the logger
+    parser.add_argument('-s', '--log_dir', default=path.join(cache, 'logs', 'igrida_trained'))
+
+    parser.add_argument('-n', '--nb_data', type=int, default=-1)
+
+    # config for cluster distribution
+    parser.add_argument('--num_workers', type=int,
+                        default=4)  # auto select appropriate cores in machine
+    parser.add_argument('--accelerator', type=str, default='auto')  # auto select GPU if exists
+
+    # config for the regularization
+    parser.add_argument('--reg_mul', type=float, default=0)  # the regularize terms
+    parser.add_argument('--reg_lay', type=int, default=-1)  # the layer we want to regularize
+    parser.add_argument('--lrate', type=float, default=5e-5)  # the learning rate for the training part
+
+    args = parser.parse_args()
+
+    # load the model from the right checkpoint
+    model = None
+    if args.reg_mul == 0:
+        ckp = path.join(args.log_dir, f"0", "best.ckpt")
+        model = BertNliLight.load_from_checkpoint(ckp)
+    else:
+        ckp = path.join(args.log_dir, f"reg_mul={args.reg_mul}", "best.ckpt")
+        model = BertNliRegu.load_from_checkpoint(ckp)
+
+    model.to(DEVICE)
+    model = model.eval()
+    # the log file
+    init_logging(
+        color=False,
+        cache_path=os.path.join(cache, 'plots', f"reg_mul={args.reg_mul}"),
+        oar_id=f"reg_mul_{args.reg_mul}_get_the_sep"
+    )
+
+    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
+
+    dm = SNLIDataModule(
+        cache=args.data_dir,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        nb_data=args.nb_data
+    )
+
+    dm.setup(stage="test")
+
+    IDS = []
+    y = []
+    y_hat = []
+
+    d = {}
+    test_loader = dm.test_dataloader()
+    spe_tok = torch.tensor([0, 101, 102]).to(DEVICE)
+
+    with torch.no_grad():
+        for batch in tqdm(test_loader):
+            # loop for the inference on this dict
+            ids = batch["input_ids"].to(DEVICE)
+            annot = batch["annotations"].to(DEVICE)
+            mk = batch["attention_masks"].to(DEVICE)
+            output = model(input_ids=ids,
+                           attention_mask=mk)["outputs"]
+
+            attention_tensor = torch.stack(output.attentions, dim=1) .to(DEVICE) # [b, l, h, T, T]
+            attention_tensor = attention_tensor.sum(dim=1).sum(dim=1)  # [b, T, T]
+            # sum over the lines and the heads
+            # no selection here
+            sep_pos = torch.isin(torch.tensor([102]).to(DEVICE), ids).to(DEVICE).type(torch.uint8)
+            sep_pos = sep_pos.unsqueeze(-1)
+            sep = F
+            sep_lines = attention_tensor[sep_pos]
+            log.debug(f"sep_lines shape : {sep_lines.shape}")
+            break
+
+
+
+
+            sep_lines = None
+            y_hat.append(sep_lines.flatten())
+            y.append(annot.flatten())
+            IDS.append(ids.flatten())
+
+        y = torch.concat(y, dim=0).cpu().numpy()
+        y_hat = torch.concat(y_hat, dim=0).cpu().numpy()
+        IDS = torch.concat(IDS, dim=0).cpu().numpy()
+
+    log.debug(f">> len(y) : {len(y)}")
+    log.debug(f">> len(y_hat) : {len(y_hat)}")
+    log.debug(f">> IDS : {len(IDS)}")
+    log.debug(f">> ckeck dim : {len(y) == len(y_hat)}")
+
+    idx = np.where(IDS == 0)[0]
+    log.debug(f">> where ids==0 : {len(idx)}")
+    y = np.delete(y, idx)
+    y_hat = np.delete(y_hat, idx)
+
+    log.info(">> after selection")
+    log.debug(f">> len(y) : {len(y)}")
+    log.debug(f">> len(y_hat) : {len(y_hat)}")
+
+    # creation of the pickle
+    log.info("pickle creation")
+    d = {"y": y,
+         "y_hat": y_hat}
+
+    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "sep_map.pickle")
+
+    log.info(">> DONE !")
