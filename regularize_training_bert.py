@@ -460,7 +460,7 @@ if __name__ == '__main__':
         init_logging()
 
     # Summary information
-    log.info(f'>>> Arguments: {json.dumps(args, indent=4)}')
+    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
 
     # load the data for the training part
     dm = SNLIDataModule(
