@@ -3,7 +3,7 @@ from os import path
 import os
 import argparse
 import numpy as np
-
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from modules.logger import log, init_logging
@@ -76,11 +76,11 @@ if __name__ == "__main__":
 
     model.to(DEVICE)
     model = model.eval()
-
+    # the log file
     init_logging(
         color=False,
         cache_path=os.path.join(cache, 'plots', f"reg_mul={args.reg_mul}"),
-        oar_id=f"reg_mul_{args.reg_mul}"
+        oar_id=f"reg_mul_{args.reg_mul}_get_the_sep"
     )
 
     log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
@@ -97,7 +97,6 @@ if __name__ == "__main__":
     IDS = []
     y = []
     y_hat = []
-    y_hat_bis = []
 
     d = {}
     test_loader = dm.test_dataloader()
@@ -112,27 +111,26 @@ if __name__ == "__main__":
             output = model(input_ids=ids,
                            attention_mask=mk)["outputs"]
 
-            attention_tensor = torch.stack(output.attentions, dim=1)
+            attention_tensor = torch.stack(output.attentions, dim=1).to(DEVICE)  # [b, l, h, T, T]
+            attention_tensor = attention_tensor.sum(dim=1).sum(dim=1)  # [b, T, T]
             # sum over the lines and the heads
             # no selection here
-            cls_lines = attention_tensor[:, :, :, 0, :].sum(dim=1).sum(dim=1)
+            sep_pos = torch.isin(torch.tensor([102]).to(DEVICE), ids).to(DEVICE).type(torch.uint8)
+            sep_pos = sep_pos.unsqueeze(-1).repeat(1, 1, 150)
+            sep_lines = torch.mul(attention_tensor, sep_pos).sum(dim=1)
 
-            # replace the specials tokens by zero
-            cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
-
-            # when the min is calculated --> don't take into account the specials tokens
-            buff = cls_lines.clone()
+            sep_lines = sep_lines.clone()
             buff = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), buff, 1e30)
 
             mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
-            maxs = cls_lines.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+            maxs = sep_lines.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
 
-            cls_lines = (cls_lines - mins) / (maxs - mins)
+            sep_lines = (sep_lines - mins) / (maxs - mins)
 
             # get back to zeros the specials tokens
-            cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
+            sep_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), sep_lines, 0)
 
-            y_hat.append(cls_lines.flatten())
+            y_hat.append(sep_lines.flatten())
             y.append(annot.flatten())
             IDS.append(ids.flatten())
 
@@ -149,7 +147,6 @@ if __name__ == "__main__":
     log.debug(f">> where ids==0 : {len(idx)}")
     y = np.delete(y, idx)
     y_hat = np.delete(y_hat, idx)
-    y_hat_bis = np.delete(y_hat_bis, idx)
 
     log.info(">> after selection")
     log.debug(f">> len(y) : {len(y)}")
@@ -160,17 +157,6 @@ if __name__ == "__main__":
     d = {"y": y,
          "y_hat": y_hat}
 
-    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "cls_map.pickle")
-
-    with open(dir, "wb") as f:
-        pickle.dump(d, f)
-
-    d = {"y": y,
-         "y_hat": y_hat_bis}
-
-    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "sum_agreg_map.pickle")
-
-    with open(dir, "wb") as f:
-        pickle.dump(d, f)
+    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "sep_map.pickle")
 
     log.info(">> DONE !")
