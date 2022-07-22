@@ -206,9 +206,6 @@ class SNLIDataModule(pl.LightningDataModule):
 
     ## ======= PRIVATE SECTIONS ======= ##
     def collate(self, batch):
-        """
-        collate function modify the structure of a Batch
-        """
         batch = self.list2dict(batch)
         texts = self.t_add_sep(batch['premise'], batch['hypothesis'])
         input_ids, attention_mask = self.t_tokenize(texts)
