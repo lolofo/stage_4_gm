@@ -3,9 +3,8 @@ from os import path
 import os
 import argparse
 import numpy as np
-
+import torch.nn.functional as F
 from tqdm import tqdm
-
 
 from modules.logger import log, init_logging
 import torch
@@ -17,6 +16,7 @@ from torch_set_up import DEVICE
 from regularize_training_bert import SNLIDataModule
 from regularize_training_bert import BertNliRegu
 from training_bert import BertNliLight
+
 
 def get_num_workers() -> int:
     '''
@@ -111,21 +111,25 @@ if __name__ == "__main__":
             output = model(input_ids=ids,
                            attention_mask=mk)["outputs"]
 
-            attention_tensor = torch.stack(output.attentions, dim=1) .to(DEVICE) # [b, l, h, T, T]
+            attention_tensor = torch.stack(output.attentions, dim=1).to(DEVICE)  # [b, l, h, T, T]
             attention_tensor = attention_tensor.sum(dim=1).sum(dim=1)  # [b, T, T]
             # sum over the lines and the heads
             # no selection here
             sep_pos = torch.isin(torch.tensor([102]).to(DEVICE), ids).to(DEVICE).type(torch.uint8)
-            sep_pos = sep_pos.unsqueeze(-1)
-            sep = F
-            sep_lines = attention_tensor[sep_pos]
-            log.debug(f"sep_lines shape : {sep_lines.shape}")
-            break
+            sep_pos = sep_pos.unsqueeze(-1).repeat(1, 1, 150)
+            sep_lines = torch.mul(attention_tensor, sep_pos).sum(dim=1)
 
+            sep_lines = sep_lines.clone()
+            buff = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), buff, 1e30)
 
+            mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+            maxs = sep_lines.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
 
+            sep_lines = (sep_lines - mins) / (maxs - mins)
 
-            sep_lines = None
+            # get back to zeros the specials tokens
+            sep_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), sep_lines, 0)
+
             y_hat.append(sep_lines.flatten())
             y.append(annot.flatten())
             IDS.append(ids.flatten())

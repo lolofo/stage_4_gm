@@ -12,6 +12,7 @@ sns.set_theme()
 # the tokenizer
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
+
 ##############################################
 ## the raw attention class >> define the main function to manipulate the attention
 ## define it as a class will help us to regroup some technics
@@ -181,30 +182,14 @@ class RawAttention:
             n_head = self.attention_tensor.shape[2]
             # one attention tensor per layer >> agregation of the heads
             self.att_tens_agr = np.zeros((n_layer, len(self.tokens), len(self.tokens)))
-            for i in range(n_layer):
-                #
-                buff = self.attention_tensor[0, i, :, :, :].detach().clone().numpy()
-                # sum over all the heads
-                if agr_type == "avg":
-                    if prune_mask is not None:
-                        # mask for the layer
-                        buff_mask = prune_mask[i, :]  # the mask of the pruned layers
-                        den = buff_mask.sum()  # number of pruned heads in this layer
+            if agr_type == "avg":
+                self.att_tens_agr = self.attention_tensor[0, :, :, :, :].mean(dim=1) # mean over the heads
+            elif agr_type == "max":
+                self.att_tens_agr = self.attention_tensor[0, :, :, :, :].max(dim=1)[0] # max over the heads
+            elif agr_type == "cls":
+                # TODO create the attention for the CLS map
+                pass
 
-                        # TODO : make this part faster than a iteration through the heads
-                        for h in range(n_head):
-                            buff[h, :, :] *= buff_mask[h]  # set to 0 the pruned heads
-                        buff = buff.sum(axis=0)  # sum the value
-                        self.att_tens_agr[i] = buff.copy() / den  # divide by the number of non-pruned heads
-                    else:
-                        buff = buff.sum(axis=0)
-                        self.att_tens_agr[i] = buff.copy() / n_head  # normalization
-                elif agr_type == "max":
-                    buff = buff.max(axis=0)
-                    self.att_tens_agr[i] = buff.copy()
-
-            # transform into a torch tensor
-            self.att_tens_agr = torch.tensor(self.att_tens_agr)
 
 
         else:
@@ -215,7 +200,7 @@ class RawAttention:
     ################################
     ### defining the graph tools ###
     ################################
-    @torch.no_grad()
+    @torch.no_grad() # private method.
     def _create_adj_matrix(self):
 
         if not self.heads_agr:
@@ -231,7 +216,7 @@ class RawAttention:
         for i in range(n_layers + 1):
             if i == 0:
                 for u in range(length):
-                    # input labels
+                    # non contextual embeddings
                     buff = "Layer_" + str(i) + "_" + str(u)
                     self.label[buff] = u
             else:
@@ -242,7 +227,8 @@ class RawAttention:
                     for v in range(length):
                         k_v = length * (i - 1) + v
                         # one the next line >> i-1 because of how we count the layers
-                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i - 1][u][v]
+                        # adj_mat[i,j] >> edge from i to j
+                        self.adj_mat[k_u][k_v] = self.att_tens_agr[i - 1][u][v].item()
 
         self.adj_mat_done = True
 
@@ -261,6 +247,7 @@ class RawAttention:
 
         for i in np.arange(self.adj_mat.shape[0]):
             for j in np.arange(self.adj_mat.shape[1]):
+                # setting the capacity attribute for the maximum flow problem
                 nx.set_edge_attributes(g, {(i, j): self.adj_mat[i, j]}, 'capacity')
 
         # the graph is also created to have capacities so we can perform max flow problem on it

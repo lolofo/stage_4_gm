@@ -144,7 +144,7 @@ class BertNliRegu(pl.LightningModule):
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
         mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)  # for the mask we have all the layers.
         # cerate the attention map
-        attention_tensor = torch.stack(outputs.attentions, dim=1)
+        attention_tensor = torch.stack(outputs.attentions, dim=1) # [b , l ,h ,T, T]
 
         as_scores = attention_tensor.sum(dim=len(attention_tensor.shape) - 2)
 
@@ -185,7 +185,7 @@ class BertNliRegu(pl.LightningModule):
         outputs = buff["outputs"]
 
         loss = self.criterion(logits, labels)  # the loss based on the criterion
-        reg_term = None
+
         if self.reg_lay > 0:
             # we regularize one given layer
             reg_term = self.layer_reg(outputs=outputs, input_ids=input_ids, layer=self.reg_lay)
@@ -273,7 +273,6 @@ class BertNliRegu(pl.LightningModule):
         """ The test step
         - for the test we only need the accuracy and the auc.
         """
-        # the different metrics
         self.test_acc(output['preds'], output['target'])
         self.test_auc(output["auc"][0], output["auc"][1])
         # add the metrics on the tensorboard
@@ -477,12 +476,17 @@ if __name__ == '__main__':
 
     # call back
     early_stopping = cb.EarlyStopping(monitor="val_/loss", patience=5, verbose=args.exp, mode='min')
-    model_checkpoint = cb.ModelCheckpoint(filename='best', monitor="val_/loss", mode='min',  # save the minimum val_loss
+    model_checkpoint = cb.ModelCheckpoint(filename='best',
+                                          monitor="val_/loss",
+                                          mode='min',  # save the minimum val_loss
                                           )
 
-    trainer = pl.Trainer(max_epochs=args.epoch, accelerator=args.accelerator,  # auto use gpu
+    trainer = pl.Trainer(max_epochs=args.epoch,
+                         accelerator=args.accelerator,  # auto use gpu
                          enable_progress_bar=not args.exp,  # hide progress bar in experimentation
-                         log_every_n_steps=1, default_root_dir=args.log_dir, logger=logger,
+                         log_every_n_steps=1,
+                         default_root_dir=args.log_dir,
+                         logger=logger,
                          callbacks=[early_stopping, model_checkpoint],
                          detect_anomaly=not args.exp)
 
