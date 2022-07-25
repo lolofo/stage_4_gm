@@ -29,7 +29,7 @@ from os import path
 from pytorch_lightning import callbacks as cb
 
 from modules import transforms as t
-from modules.logger import log, init_logging
+from logger import log, init_logging
 
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
