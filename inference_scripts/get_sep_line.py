@@ -1,12 +1,18 @@
 # preparation of the environment
 from os import path
 import os
+import sys
+cwd = os.getcwd().split(os.path.sep)
+while cwd[-1] != "stage_4_gm":
+    os.chdir("..")
+    cwd = os.getcwd().split(os.path.sep)
+sys.path.extend([os.getcwd()])
+
 import argparse
 import numpy as np
-import torch.nn.functional as F
 from tqdm import tqdm
 
-from inference_scripts.logger import log, init_logging
+from logger import log, init_logging
 import torch
 import pickle
 import json

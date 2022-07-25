@@ -1,18 +1,22 @@
-# preparation of the environment
 from os import path
 import os
+import sys
+cwd = os.getcwd().split(os.path.sep)
+while cwd[-1] != "stage_4_gm":
+    os.chdir("..")
+    cwd = os.getcwd().split(os.path.sep)
+print(os.getcwd())
+sys.path.extend([os.getcwd()])
+
+
 import argparse
 import numpy as np
-
 from tqdm import tqdm
-
 from logger import log, init_logging
 import torch
 import pickle
 import json
-
 from torch_set_up import DEVICE
-
 from regularize_training_bert import SNLIDataModule
 from regularize_training_bert import BertNliRegu
 from training_bert import BertNliLight

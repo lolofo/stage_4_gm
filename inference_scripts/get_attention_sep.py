@@ -3,19 +3,18 @@
 
 from os import path
 import os
+import sys
+cwd = os.getcwd().split(os.path.sep)
+while cwd[-1] != "stage_4_gm":
+    os.chdir("..")
+    cwd = os.getcwd().split(os.path.sep)
+sys.path.extend([os.getcwd()])
 
 import argparse
-
 import matplotlib.pyplot as plt
-import numpy as np
-import torch.nn.functional as F
 import seaborn as sns
 from tqdm import tqdm
-
 import torch
-import pickle
-import json
-
 from torch_set_up import DEVICE
 from regularize_training_bert import SNLIDataModule
 from regularize_training_bert import BertNliRegu
