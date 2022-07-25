@@ -147,12 +147,13 @@ class SNLIDataModule(pl.LightningDataModule):
         t_tensor : modules class to transform the input_ids and att_mask into tensors
     """
 
-    def __init__(self, cache: str, batch_size=8, num_workers=0, nb_data=-1):
+    def __init__(self, cache: str, batch_size=8, num_workers=0, nb_data=-1, flag="standard"):
         super().__init__()
         self.cache = cache
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.nb_data = nb_data
+        self.flag = flag
 
         self.t_add_sep = t.AddSepTransform()
         self.t_tokenize = t.BertTokenizeTransform(max_pad=150)
@@ -207,7 +208,10 @@ class SNLIDataModule(pl.LightningDataModule):
     ## ======= PRIVATE SECTIONS ======= ##
     def collate(self, batch):
         batch = self.list2dict(batch)
-        texts = self.t_add_sep(batch['premise'], batch['hypothesis'])
+        if self.flag == "standard":
+            texts = self.t_add_sep(batch['premise'], batch['hypothesis'])
+        elif self.flag == "flip":
+            texts = self.t_add_sep(batch['hypothesis'], batch['premise'])
         input_ids, attention_mask = self.t_tokenize(texts)
         input_ids = self.t_tensor(input_ids)
         attention_mask = self.t_tensor(attention_mask)
@@ -250,6 +254,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-e', '--epoch', type=int, default=1)
     parser.add_argument('-b', '--batch_size', type=int, default=4)
+    parser.add_argument('-b', '--dataset', type=str, default="standard")
 
     # what model we should use the default is 1 >> the one created in this file
     parser.add_argument('-t', '--model_type', type=int, default=1)
@@ -285,7 +290,8 @@ if __name__ == '__main__':
         cache=args.data_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
-        nb_data=args.nb_data
+        nb_data=args.nb_data,
+        flag=args.dataset
     )
 
     model = None
