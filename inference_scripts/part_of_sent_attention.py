@@ -28,7 +28,6 @@ if __name__ == "__main__":
     while cwd[-1] != "stage_4_gm":
         os.chdir("..")
         cwd = os.getcwd().split(os.path.sep)
-    print(f">> cwd >> {os.getcwd()}")
 
     sns.set_theme()
     parser = argparse.ArgumentParser()
