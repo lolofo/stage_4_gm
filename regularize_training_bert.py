@@ -154,8 +154,7 @@ class BertNliRegu(pl.LightningModule):
         etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
         pen = etp_scores.mean()  # mean over all the heads and the layers (and the batch).
 
-        # for the AUC calculus compute the heads agregation
-
+        # --> AUC calculus
         sum_agreg = attention_tensor[:, :, :, :, :].sum(dim=1).sum(dim=1).sum(dim=1)
         # replace the specials tokens by zero
         sum_agreg = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), sum_agreg, 0)
@@ -167,6 +166,7 @@ class BertNliRegu(pl.LightningModule):
         maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
 
         sum_agreg = (sum_agreg - mins) / (maxs - mins)
+
         return {"pen": pen, "scores": sum_agreg}
 
     # at the end of
