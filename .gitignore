@@ -27,3 +27,9 @@ lightning_logs
 **/**/*.pt
 /.cache/
 /.bin/
+
+
+/.igrida_scripts/
+
+.sh
+*/**/.sh
