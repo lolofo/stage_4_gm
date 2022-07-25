@@ -1,25 +1,22 @@
-# construction of a map for the attention on the token SEP in the CLS map
-# objective, show that after the layer 3 there we start to have some attention on the layer SEP token
-
+# preparation of the environment
 from os import path
 import os
-
 import argparse
-
-import matplotlib.pyplot as plt
 import numpy as np
-import torch.nn.functional as F
-import seaborn as sns
+
 from tqdm import tqdm
 
+from logger import log, init_logging
 import torch
 import pickle
 import json
 
 from torch_set_up import DEVICE
+
 from regularize_training_bert import SNLIDataModule
 from regularize_training_bert import BertNliRegu
 from training_bert import BertNliLight
+
 
 if __name__ == "__main__":
     cwd = os.getcwd().split(os.path.sep)
@@ -28,7 +25,6 @@ if __name__ == "__main__":
         cwd = os.getcwd().split(os.path.sep)
     print(f">> cwd >> {os.getcwd()}")
 
-    sns.set_theme()
     parser = argparse.ArgumentParser()
 
     # .cache folder >> the folder where everything will be saved
@@ -45,8 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--nb_data', type=int, default=-1)
 
     # config for cluster distribution
-    parser.add_argument('--num_workers', type=int,
-                        default=4)  # auto select appropriate cores in machine
+    parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--accelerator', type=str, default='auto')  # auto select GPU if exists
 
     # config for the regularization
@@ -68,6 +63,14 @@ if __name__ == "__main__":
     model.to(DEVICE)
     model = model.eval()
 
+    init_logging(
+        color=False,
+        cache_path=os.path.join(cache, 'plots', f"reg_mul={args.reg_mul}"),
+        oar_id=f"reg_mul_{args.reg_mul}"
+    )
+
+    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
+
     dm = SNLIDataModule(
         cache=args.data_dir,
         batch_size=args.batch_size,
@@ -80,20 +83,14 @@ if __name__ == "__main__":
     IDS = []
     y = []
     y_hat = []
-    y_hat_combine = []
-    y_hat_cls = []
+    y_hat_bis = []
 
     d = {}
     test_loader = dm.test_dataloader()
     spe_tok = torch.tensor([0, 101, 102]).to(DEVICE)
-    it = 0
-
-    buff = torch.zeros((12, 1)).to(DEVICE)
-    cls_buff = torch.zeros((12, 1)).to(DEVICE)
 
     with torch.no_grad():
         for batch in tqdm(test_loader):
-            it += args.batch_size
             # loop for the inference on this dict
             ids = batch["input_ids"].to(DEVICE)
             annot = batch["annotations"].to(DEVICE)
@@ -101,39 +98,65 @@ if __name__ == "__main__":
             output = model(input_ids=ids,
                            attention_mask=mk)["outputs"]
 
-            attention_tensor = torch.stack(output.attentions, dim=1).sum(dim=2).to(DEVICE) / 12  # sum over the heads
-            cls_lines = attention_tensor[:, :, 0, :]  # [b , l, T]
-            sep_pos = torch.isin(ids, torch.tensor([102]).to(DEVICE)).to(DEVICE).type(torch.uint8)  # [b, T]
-            sep_pos = sep_pos[:, None, :]
-            sep_pos = sep_pos.repeat(1, 12, 1)  # repeat over the layers
-            sep_attention = torch.mul(sep_pos, cls_lines).sum(dim=0).sum(dim=-1)
+            attention_tensor = torch.stack(output.attentions, dim=1)
+            # sum over the lines and the heads
+            # no selection here
+            cls_lines = attention_tensor[:, :, :, 0, :].sum(dim=1).sum(dim=1)
 
-            cls_attention = attention_tensor[:, :, 0, 0]  # attention on the CLS token for the CLS line
-            cls_attention = cls_attention.sum(dim=0)
+            # replace the specials tokens by zero
+            cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
 
-            buff[:, 0] += sep_attention
-            cls_buff[:, 0] += cls_attention
+            # when the min is calculated --> don't take into account the specials tokens
+            buff = cls_lines.clone()
+            buff = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), buff, 1e30)
 
-    buff = buff.cpu().numpy()
-    cls_buff = cls_buff.cpu().numpy()
+            mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
+            maxs = cls_lines.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
 
-    fig = plt.figure(figsize=(10, 10))
-    plt.plot(list(range(1, 13)), buff[:, 0] / it, label="SEP -- at")
-    plt.plot(list(range(1, 13)), cls_buff[:, 0] / it, label="CLS -- at")
-    plt.hlines(1, 1, 12, linestyles="dashed", colors="r")
-    plt.xlabel("layer")
-    plt.ylabel("attention")
-    plt.legend()
+            cls_lines = (cls_lines - mins) / (maxs - mins)
 
-    cwd = os.getcwd().split(os.path.sep)
-    while cwd[-1] != "stage_4_gm":
-        os.chdir("..")
-        cwd = os.getcwd().split(os.path.sep)
-    print(">> the git rep : ", end="")
-    print(os.getcwd())
+            # get back to zeros the specials tokens
+            cls_lines = torch.where(torch.logical_not(torch.isin(ids, spe_tok)), cls_lines, 0)
 
-    dir = os.path.join(os.getcwd(), ".cache", "plots", "cls_line_study")
-    if not os.path.exists(dir):
-        os.mkdir(dir)
+            y_hat.append(cls_lines.flatten())
+            y.append(annot.flatten())
+            IDS.append(ids.flatten())
 
-    plt.savefig(os.path.join(dir, "sep_cls_attention_over_layers"))
+        y = torch.concat(y, dim=0).cpu().numpy()
+        y_hat = torch.concat(y_hat, dim=0).cpu().numpy()
+        IDS = torch.concat(IDS, dim=0).cpu().numpy()
+
+    log.debug(f">> len(y) : {len(y)}")
+    log.debug(f">> len(y_hat) : {len(y_hat)}")
+    log.debug(f">> IDS : {len(IDS)}")
+    log.debug(f">> ckeck dim : {len(y) == len(y_hat)}")
+
+    idx = np.where(IDS == 0)[0]
+    log.debug(f">> where ids==0 : {len(idx)}")
+    y = np.delete(y, idx)
+    y_hat = np.delete(y_hat, idx)
+    y_hat_bis = np.delete(y_hat_bis, idx)
+
+    log.info(">> after selection")
+    log.debug(f">> len(y) : {len(y)}")
+    log.debug(f">> len(y_hat) : {len(y_hat)}")
+
+    # creation of the pickle
+    log.info("pickle creation")
+    d = {"y": y,
+         "y_hat": y_hat}
+
+    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "cls_map.pickle")
+
+    with open(dir, "wb") as f:
+        pickle.dump(d, f)
+
+    d = {"y": y,
+         "y_hat": y_hat_bis}
+
+    dir = os.path.join(cache, "plots", f"reg_mul={args.reg_mul}", "sum_agreg_map.pickle")
+
+    with open(dir, "wb") as f:
+        pickle.dump(d, f)
+
+    log.info(">> DONE !")
