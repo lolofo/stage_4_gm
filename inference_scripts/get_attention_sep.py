@@ -125,13 +125,6 @@ if __name__ == "__main__":
     plt.ylabel("attention")
     plt.legend()
 
-    cwd = os.getcwd().split(os.path.sep)
-    while cwd[-1] != "stage_4_gm":
-        os.chdir("..")
-        cwd = os.getcwd().split(os.path.sep)
-    print(">> the git rep : ", end="")
-    print(os.getcwd())
-
     dir = os.path.join(os.getcwd(), ".cache", "plots", "cls_line_study")
     if not os.path.exists(dir):
         os.mkdir(dir)
