@@ -29,7 +29,7 @@ lightning_logs
 /.bin/
 
 
-/.igrida_scripts/
+/igrida_scripts/
 
 .sh
 */**/.sh
