@@ -283,8 +283,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Summary information
-    print('>> workers: ', args.num_workers)
-    print('>> nb_data: ', args.nb_data)
+    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
 
     dm = SNLIDataModule(
         cache=args.data_dir,
