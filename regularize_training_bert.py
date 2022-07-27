@@ -157,15 +157,11 @@ class BertNliRegu(pl.LightningModule):
         # --> AUC calculus
         sum_agreg = attention_tensor[:, :, :, :, :].sum(dim=1).sum(dim=1).sum(dim=1)
         # replace the specials tokens by zero
-        log.debug(f"POURQUOI CA NE MARCHE PAS ??!!?!??")
         sum_agreg = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), sum_agreg, 0)
-
         buff = sum_agreg.clone()
         buff = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), buff, 1e30)
-
         mins = buff.min(dim=-1)[0].unsqueeze(1).repeat(1, 150)
         maxs = sum_agreg.max(dim=-1)[0].unsqueeze(1).repeat(1, 150)
-
         sum_agreg = (sum_agreg - mins) / (maxs - mins)
 
         return {"pen": pen, "scores": sum_agreg}
