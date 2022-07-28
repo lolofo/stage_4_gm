@@ -45,6 +45,8 @@ if __name__ == "__main__":
 
     parser.add_argument('-n', '--nb_data', type=int, default=-1)
 
+    parser.add_argument('--dataset', type=str, default="standard")
+
     # config for cluster distribution
     parser.add_argument('--num_workers', type=int,
                         default=4)  # auto select appropriate cores in machine
@@ -65,6 +67,10 @@ if __name__ == "__main__":
     else:
         ckp = path.join(args.log_dir, f"reg_mul={args.reg_mul}", "best.ckpt")
         model = BertNliRegu.load_from_checkpoint(ckp)
+
+    if args.dataset == "flip":
+        ckp = path.join(args.log_dir, f"flip_dataset", "best.ckpt")
+        model = BertNliLight.load_from_checkpoint(ckp)
 
     model.to(DEVICE)
     model = model.eval()
@@ -135,4 +141,4 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(10, 10))
     ax = sns.boxplot(x=x, y=y)
 
-    plt.savefig(os.path.join(dir, "attention_repartition.png"))
+    plt.savefig(os.path.join(dir, f"attention_repartition_reg_mul{args.reg_mul}_dataset_{args.dataset}.png"))
