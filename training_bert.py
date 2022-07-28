@@ -117,7 +117,8 @@ class BertNliLight(pl.LightningModule):
     ##################
     def test_step(self, batch, batch_idx):
         input_ids, attention_mask, labels = batch
-        logits = self.forward(input_ids, attention_mask)
+        output = self.forward(input_ids, attention_mask)
+        logits = output["logits"]
 
         # some tools for the end_validation
         class_pred = torch.softmax(logits, dim=1)
@@ -283,7 +284,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Summary information
-    log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
+    #log.info(f'>>> Arguments: {json.dumps(vars(args), indent=4)}')
 
     dm = SNLIDataModule(
         cache=args.data_dir,

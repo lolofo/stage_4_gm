@@ -112,19 +112,14 @@ class BertNliRegu(pl.LightningModule):
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
         mask = mask.unsqueeze(1).repeat(1, 12, 1)
         # the attention
-        attention_tensor = outputs.attentions[
-            layer]  # --> select the correct layer shape [batch, heads, MAX_PAD, MAX_PAD]
-        as_scores = attention_tensor.sum(dim=len(attention_tensor.shape) - 2)
-        # --> sum over the lines to have a distribution
-        as_scores = torch.softmax(as_scores - INF * mask, dim=-1)  # get the distribution
-        etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
-        etp_scores = etp_scores.sum(dim=-1)
-        pen = etp_scores.mean()  # mean over all the heads and the batch
-
+        a_hat = outputs.attentions[layer].sum(dim=2)
+        a_hat = torch.softmax(a_hat - INF * mask, dim=-1)
+        entropy = (- a_hat * torch.log(a_hat + 1e-16)).sum(dim=-1)
+        pen = entropy.mean()  # mean over all the heads and the batch
 
         # --> for the AUC calculus
-        sum_agreg = attention_tensor[:, :, :, :].sum(dim=1).sum(dim=1)
-        # replace the specials tokens by zero
+        attention_tensor = torch.stack(outputs.attentions, dim=1)
+        sum_agreg = attention_tensor.sum(dim=1).sum(dim=1).sum(dim=1)
         sum_agreg = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), sum_agreg, 0)
 
         buff = sum_agreg.clone()
@@ -144,18 +139,18 @@ class BertNliRegu(pl.LightningModule):
         mask = torch.isin(input_ids, spe_ids).type(torch.uint8).to(self.device)
         mask = mask.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)  # for the mask we have all the layers.
         # cerate the attention map
-        attention_tensor = torch.stack(outputs.attentions, dim=1) # dimension : [b, L, H, T, T]
+        attention_tensor = torch.stack(outputs.attentions, dim=1)  # dimension : [b, L, H, T, T]
 
-        as_scores = attention_tensor.sum(dim=len(attention_tensor.shape) - 2) # sum over the lines
+        a_hat = attention_tensor.sum(dim=3)  # sum over the lines
 
         # the entropia calculus
-        as_scores = torch.softmax(as_scores - INF * mask, dim=-1)
-        etp_scores = - as_scores * torch.log(as_scores + EPS * mask + 1e-16)
-        etp_scores = etp_scores.sum(dim=-1)  # shape [b, l, h]
-        pen = etp_scores.mean()  # mean over all the heads and the layers (and the batch).
+        a_hat = torch.softmax(a_hat - INF * mask, dim=-1)
+        entropy = - a_hat * torch.log(a_hat + EPS * mask + 1e-16)
+        entropy = entropy.sum(dim=-1)  # shape [b, l, h]
+        pen = entropy.mean()  # mean over all the heads and the layers (and the batch).
 
         # --> AUC calculus
-        sum_agreg = attention_tensor[:, :, :, :, :].sum(dim=1).sum(dim=1).sum(dim=1)
+        sum_agreg = attention_tensor.sum(dim=1).sum(dim=1).sum(dim=1)
         # replace the specials tokens by zero
         sum_agreg = torch.where(torch.logical_not(torch.isin(input_ids, spe_ids)), sum_agreg, 0)
         buff = sum_agreg.clone()
