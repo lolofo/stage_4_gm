@@ -71,7 +71,7 @@ class RawAttention:
     """
 
     @torch.no_grad()
-    def __init__(self, model, input_ids, attention_mask, test_mod=True,
+    def __init__(self, model, input_ids, attention_mask, test,test_mod=True,
                  *args, **kwargs):
 
         # the base values
@@ -84,11 +84,11 @@ class RawAttention:
 
         # the attention tensor
         self.attention_tensor = None
-        outputs = model.bert(input_ids=input_ids,
-                             attention_mask=attention_mask,
-                             *args, **kwargs)
+        outputs = model(input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        *args, **kwargs)
 
-        buff = outputs.attentions
+        buff = outputs["outputs"].attentions
         res = torch.stack(buff, dim=1)
 
         # remove the padding tokens
@@ -101,14 +101,13 @@ class RawAttention:
         if test_mod:
             print("test passed : ", end='')
             passed = True
-            for n in range(len(buff)):
+            for n in range(12):
                 for n_head in range(12):
-                    for x in range(input_ids.shape[1]):
-                        for y in range(input_ids.shape[1]):
-                            if mask[x] == 1 and mask[y] == 1:
-                                if buff[n][0, n_head, x, y] != self.attention_tensor[0, n, n_head, x, y]:
-                                    passed = False
-                                    break
+                    for x in range(len(self.tokens)):
+                        for y in range(len(self.tokens)):
+                            if test[n][0, n_head, x, y] != self.attention_tensor[0, n, n_head, x, y]:
+                                passed = False
+                                break
 
             if passed:
                 print(u'\u2713')

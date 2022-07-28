@@ -9,7 +9,12 @@ import matplotlib.pyplot as plt
 from attention_algorithms.raw_attention import RawAttention
 import tqdm
 
+from transformers import BertTokenizer
+
+tk = BertTokenizer.from_pretrained('bert-base-uncased')
+
 SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
+#SPECIAL_TOKENS += tk.convert_ids_to_tokens()  # add the punctuation to the special tokens
 
 
 ###############################
@@ -75,6 +80,7 @@ def softmax_normalization(tokens, attention: torch.tensor):
 def default_plot_colormap(map,
                           xlabel, ylabel, title,
                           xstick=None,
+                          ystick=None,
                           sz=(10, 10),
                           show_values=True):
     # the global figure
@@ -95,8 +101,11 @@ def default_plot_colormap(map,
     # the y-axis
     plt.ylabel(ylabel)
     ax.set_yticks(range(map.shape[0]))
-    y_label_list = [str(i + 1) for i in range(map.shape[0])]
-    ax.set_yticklabels(y_label_list)
+    if ystick is None:
+        y_label_list = [str(i) for i in range(map.shape[0])]
+        ax.set_xticklabels(y_label_list)
+    else:
+        ax.set_yticklabels(ystick)
 
     # for each cell
     if show_values:
@@ -194,6 +203,100 @@ class LenException(Exception):
 
 
 # --> calculate the attention score
+def attention_score(sentences, masks,
+                    e_snli_data,
+                    model,
+                    TR_q: float = 0.5,
+                    quantiles_calc: bool = True):
+    """ attention_score function
+
+    :param sentences: the tokenized sentences
+    :param masks: attention masks for the sentences
+    :param e_snli_data: dataframe for the annotation
+    :param model: snli type bert model
+    :param TR_q: the quantile we should consider for the threshold
+    :param quantiles_calc: should we calculate the different thresold
+
+    return the attention map as a dictionnary, and the e-snli annotation value
+    """
+    Y_test = []
+    nb_err = 0
+    # where we will store the attention
+    pur_attention = {}
+
+    # the quantiles vector for our threshold
+    quantiles = {}
+
+    for i in range(12):
+        pur_attention[f"layer_{i}"] = {}
+        quantiles[f"layer_{i}"] = {}
+        for j in range(12):
+            pur_attention[f"layer_{i}"][f"head_{j}"] = []
+            quantiles[f"layer_{i}"][f"head_{j}"] = []
+
+    nb_it = sentences.shape[0]
+    for _, i in enumerate(tqdm.tqdm(range(nb_it))):
+        j = 0
+        # iteration through all the sentences
+        # construct the raw attention object
+        sent = sentences[i, :].clone().detach()[None, :]
+        mk = masks[i, :].clone().detach()[None, :]
+        raw_attention_inst = RawAttention(model=model,
+                                          input_ids=sent,
+                                          attention_mask=mk,
+                                          test_mod=False
+                                          )
+
+        # find the e-snli sentence that corresponds to our problem
+        try:
+            while j < e_snli_data.shape[0] and raw_attention_inst.tokens != eval(e_snli_data["tok_sent"][j]):
+                j += 1
+
+            if j >= e_snli_data.shape[0]:
+                raise LenException
+
+            if raw_attention_inst.tokens != eval(e_snli_data["tok_sent"][j]):
+                raise LenException
+
+            else:
+                # once the sentence is found >> add the e-snli annotation
+                Y_test += eval(e_snli_data["hg_goal"][j])
+
+                # loop over every head of every layer
+                for l in range(12):
+                    for h in range(12):
+                        mat = raw_attention_inst.attention_tensor[0, l, h, :, :]
+                        # make the sum on the column >> agregation of the weights
+                        # >> dim=0 >> we reduce the number of lines
+                        b = mat.sum(dim=0)
+                        # >> remove the special tokens
+                        # >> normalize the attention
+                        b = normalize_attention(raw_attention_inst.tokens, b)
+                        # >> add the attention
+                        pur_attention[f"layer_{l}"][f"head_{h}"] += list(b.detach().numpy())
+
+                        # >> calculate the quantile object
+                        if quantiles_calc:
+                            # update the quantiles
+                            # quantiles for every layers
+                            quantiles[f"layer_{l}"][f"head_{h}"] += list(
+                                np.repeat(np.quantile(b.detach().numpy(), TR_q),
+                                          repeats=len(eval(e_snli_data["hg_goal"][j]))))
+
+        except LenException:
+            # count the different errors
+            nb_err += 1
+
+    # >> the errors are for the sentences we didn't found in the snli dataset
+    print(f">> nb_errors : {nb_err}")
+
+    # how many labeled example do we have
+    print(f">> len Y_test : {len(Y_test)}")
+
+    # return the two objects to calculate the metric for each head.
+    return pur_attention, Y_test, quantiles
+
+
 def attention_score(sentences, masks,
                     e_snli_data,
                     model,
