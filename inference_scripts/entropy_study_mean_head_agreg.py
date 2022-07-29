@@ -14,14 +14,13 @@ from tqdm import tqdm
 from logger import log, init_logging
 import torch
 import pickle
-import json
 from torch_set_up import DEVICE
 from regularize_training_bert import SNLIDataModule
 from training_bert import BertNliLight
 
 if __name__ == "__main__":
     init_logging()
-    log.info("start entropy_study_layers_study")
+    log.info("start entropy_study_layers_study : HEAD MEAN")
     cache = path.join(os.getcwd(), '.cache')
     log.info(f"current directory {os.getcwd()}")
 
@@ -52,12 +51,26 @@ if __name__ == "__main__":
 
     dm.setup(stage="test")
 
-    a_true = {"entailement": [], "neutral": [], "contradiction": []}  # the baseline
-    all_layers = {"entailement": [], "neutral": [], "contradiction": []}  # all the layers
-    layers_1_10 = {"entailement": [], "neutral": [], "contradiction": []}  # from 1 to 10
-    layers_4_10 = {"entailement": [], "neutral": [], "contradiction": []}  # layer 4 to 10
-    layers_5_10 = {"entailement": [], "neutral": [], "contradiction": []}  # layer 5 to 10
+    a_true = {"entailement": [], "neutral": [], "contradiction": []
+              }
+
+    all_layers = {"entailement": [], "neutral": [], "contradiction": [],
+                  "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+                  }
+
+    layers_1_10 = {"entailement": [], "neutral": [], "contradiction": [],
+                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+                   }
+    layers_4_10 = {"entailement": [], "neutral": [], "contradiction": [],
+                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+                   }
+
+    layers_5_10 = {"entailement": [], "neutral": [], "contradiction": [],
+                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+                   }
+
     IDS = {"entailement": [], "neutral": [], "contradiction": []}
+    count = {"entailement": 0, "neutral": 0, "contradiction": 0}
 
     LABELS = ["entailement", "neutral", "contradiction"]
     INF = 1e30
@@ -97,13 +110,13 @@ if __name__ == "__main__":
             pad_mask = torch.transpose(pad_mask, dim0=3, dim1=4)
             attention_tensor = torch.mul(attention_tensor, pad_mask)
 
-
             # all the layers
             a_hat = attention_tensor[:, :, :, :, :]
-            a_hat = a_hat.sum(dim=2) / 12 # head agregation
+            a_hat = a_hat.sum(dim=2) / 12  # head agregation
             a_hat = a_hat.sum(dim=1)
             a_hat = a_hat.sum(dim=1)  # line agregation
             a_hat_all = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
+            ent_all = (-a_hat_all * torch.log(a_hat_all + 1e-16)).sum(dim=-1)
 
             # layer 1 to 10
             a_hat = attention_tensor[:, 0:10, :, :, :].clone()  # select only some layers
@@ -111,6 +124,7 @@ if __name__ == "__main__":
             a_hat = a_hat.sum(dim=1)
             a_hat = a_hat.sum(dim=1)  # line agregation
             a_hat_1_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
+            ent_1_10 = (-a_hat_1_10 * torch.log(a_hat_1_10 + 1e-16)).sum(dim=-1)
 
             # layer 4 to 10
             a_hat = attention_tensor[:, 3:10, :, :, :].clone()  # select only some layers
@@ -118,6 +132,7 @@ if __name__ == "__main__":
             a_hat = a_hat.sum(dim=1)
             a_hat = a_hat.sum(dim=1)  # line agregation
             a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
+            ent_4_10 = (-a_hat_4_10 * torch.log(a_hat_4_10 + 1e-16)).sum(dim=-1)
 
             # layer 5 to 10
             a_hat = attention_tensor[:, 4:10, :, :, :].clone()  # select only some layers
@@ -125,15 +140,25 @@ if __name__ == "__main__":
             a_hat = a_hat.sum(dim=1)  # mean over the layers
             a_hat = a_hat.sum(dim=1)  # line agregation
             a_hat_5_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
+            ent_5_10 = (-a_hat_5_10 * torch.log(a_hat_5_10 + 1e-16)).sum(dim=-1)
 
             for b in range(args.batch_size):
                 lb = LABELS[int(labels[b].item())]
                 IDS[lb].append(ids[b, :].cpu())
+                count[lb] += 1
+
+                # add the weights
                 a_true[lb].append(annot[b, :].cpu())
                 all_layers[lb].append(a_hat_all[b, :].cpu())
                 layers_1_10[lb].append(a_hat_1_10[b, :].cpu())
                 layers_4_10[lb].append(a_hat_4_10[b, :].cpu())
                 layers_5_10[lb].append(a_hat_5_10[b, :].cpu())
+
+                # add the entropy
+                all_layers["entropy"][lb][0] += ent_all[b].item()
+                layers_1_10["entropy"][lb][0] += ent_1_10[b].item()
+                layers_4_10["entropy"][lb][0] += ent_4_10[b].item()
+                layers_5_10["entropy"][lb][0] += ent_5_10[b].item()
 
             it += 1
 
@@ -149,15 +174,19 @@ if __name__ == "__main__":
 
         all_layers[k] = torch.concat(all_layers[k], dim=0).cpu().numpy()
         all_layers[k] = np.delete(all_layers[k], idx)
+        all_layers["entropy"][k][0] /= count[k]
 
         layers_5_10[k] = torch.concat(layers_5_10[k], dim=0).cpu().numpy()
         layers_5_10[k] = np.delete(layers_5_10[k], idx)
+        layers_5_10["entropy"][k][0] /= count[k]
 
         layers_4_10[k] = torch.concat(layers_4_10[k], dim=0).cpu().numpy()
         layers_4_10[k] = np.delete(layers_4_10[k], idx)
+        layers_4_10["entropy"][k][0] /= count[k]
 
         layers_1_10[k] = torch.concat(layers_1_10[k], dim=0).cpu().numpy()
         layers_1_10[k] = np.delete(layers_1_10[k], idx)
+        layers_1_10["entropy"][k][0] /= count[k]
 
     # proceed some statistics
     log.info("some statistics")
@@ -173,17 +202,17 @@ if __name__ == "__main__":
     # now save the files
     dir = os.path.join(cache, "plots", f"entropy_study")
 
-    with open(os.path.join(dir, "a_true.pickle"), "wb") as f:
+    with open(os.path.join(dir, "a_true_head_mean.pickle"), "wb") as f:
         pickle.dump(a_true, f)
 
-    with open(os.path.join(dir, "all_layers.pickle"), "wb") as f:
+    with open(os.path.join(dir, "all_layers_head_mean.pickle"), "wb") as f:
         pickle.dump(all_layers, f)
 
-    with open(os.path.join(dir, "layers_1_10.pickle"), "wb") as f:
+    with open(os.path.join(dir, "layers_1_10_head_mean.pickle"), "wb") as f:
         pickle.dump(layers_1_10, f)
 
-    with open(os.path.join(dir, "layers_4_10.pickle"), "wb") as f:
+    with open(os.path.join(dir, "layers_4_10_head_mean.pickle"), "wb") as f:
         pickle.dump(layers_4_10, f)
 
-    with open(os.path.join(dir, "layers_5_10.pickle"), "wb") as f:
+    with open(os.path.join(dir, "layers_5_10_head_mean.pickle"), "wb") as f:
         pickle.dump(layers_5_10, f)
