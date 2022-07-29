@@ -120,17 +120,17 @@ if __name__ == "__main__":
 
             # layer 1 to 10
             a_hat = attention_tensor[:, 0:10, :, :, :].clone()  # select only some layers
-            a_hat = a_hat.sum(dim=2)  # mean head agregation
+            a_hat = a_hat.sum(dim=2)
             a_hat = a_hat.sum(dim=1)
-            a_hat = a_hat.sum(dim=1)  # line agregation
+            a_hat = a_hat.sum(dim=1)
             a_hat_1_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
             ent_1_10 = (-a_hat_1_10 * torch.log(a_hat_1_10 + 1e-16)).sum(dim=-1)
 
             # layer 4 to 10
             a_hat = attention_tensor[:, 3:10, :, :, :].clone()  # select only some layers
-            a_hat = a_hat.sum(dim=2)  # mean head agregation
+            a_hat = a_hat.sum(dim=2)
             a_hat = a_hat.sum(dim=1)
-            a_hat = a_hat.sum(dim=1)  # line agregation
+            a_hat = a_hat.sum(dim=1)
             a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
             ent_4_10 = (-a_hat_4_10 * torch.log(a_hat_4_10 + 1e-16)).sum(dim=-1)
 
