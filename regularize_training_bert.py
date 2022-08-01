@@ -390,9 +390,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not args.exp:
-        init_logging(color=False, cache_path=os.path.join(args.log_dir, args.experiment, args.version),
-                     oar_id="log_file_test")
+    if args.exp:
+        init_logging(color=not args.exp, cache_path=os.path.join(args.log_dir, args.experiment, args.version),
+                     oar_id=f"RegMul={args.reg_mul}")
     else:
         init_logging()
 
