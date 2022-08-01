@@ -1,5 +1,6 @@
 # calculate the accuracy for each class
 from os import path
+from scipy.stats import ttest_ind
 import os
 import sys
 
@@ -18,6 +19,18 @@ import pickle
 from torch_set_up import DEVICE
 from regularize_training_bert import SNLIDataModule
 from training_bert import BertNliLight
+
+
+def p_value_signifiance(p):
+    if p <= 0.001:
+        return "* * *"
+    elif p <= 0.01:
+        return "* *"
+    elif p <= 0.05:
+        return "*"
+    else :
+        return "."
+
 
 if __name__ == "__main__":
     init_logging()
@@ -53,7 +66,7 @@ if __name__ == "__main__":
     dm.setup(stage="test")
 
     count = {"entailement": 0, "neutral": 0, "contradiction": 0}
-    count_preds = {"entailement": 0, "neutral": 0, "contradiction": 0}
+    count_preds = {"entailement": [], "neutral": [], "contradiction": []}
     LABELS = ["entailement", "neutral", "contradiction"]
 
     test_loader = dm.test_dataloader()
@@ -79,10 +92,37 @@ if __name__ == "__main__":
             for b in range(args.batch_size):
                 lb = LABELS[int(labels[b].item())]
                 count[lb] += 1
-                count_preds[lb] += acc[b].item()
+                count_preds[lb].append(acc[b].item())
+
+    log.info("the workforce of every class")
+    log.info(count)
 
     log.info(f"the accuracy")
+    acc = {}
     for k in LABELS:
-        count_preds[k] /= count[k]
-    log.debug(f"class accuracy : {count_preds}")
+        acc[k] = sum(count_preds[k])/count[k]
+    log.debug(f"class accuracy : {acc}")
+
+    log.info("signifiance test")
+    test_table = [["Test", "T-stats", "p-value", "Signifiance"],
+                  ["contradiction > entailement"],
+                  ["contradictions > neutrals"]]
+
+    t1 = ttest_ind(count_preds["contradiction"], count_preds["entailement"])
+    t2 = ttest_ind(count_preds["contradiction"], count_preds["neutral"])
+
+    test_table[1].append(t1[0])
+    test_table[1].append(t1[1])
+    test_table[1].append(p_value_signifiance(t1[1]))
+
+    test_table[2].append(t2[0])
+    test_table[2].append(t2[1])
+    test_table[2].append(p_value_signifiance(t2[1]))
+
+    dir = os.path.join(cache, "plots", f"class_accuracy")
+    with open(os.path.join(dir, "class_accuracy.pickle"), "wb") as f:
+        pickle.dump(test_table, f)
+
+
+
 

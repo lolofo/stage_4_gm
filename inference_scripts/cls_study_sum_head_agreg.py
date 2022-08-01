@@ -51,23 +51,12 @@ if __name__ == "__main__":
 
     dm.setup(stage="test")
 
-    a_true = {"entailement": [], "neutral": [], "contradiction": []
-              }
+    a_true = {"entailement": [], "neutral": [], "contradiction": []}
+    all_layers = {"entailement": [], "neutral": [], "contradiction": []}
+    layers_1_10 = {"entailement": [], "neutral": [], "contradiction": []}
+    layers_4_10 = {"entailement": [], "neutral": [], "contradiction": []}
 
-    all_layers = {"entailement": [], "neutral": [], "contradiction": [],
-                  "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                  }
-
-    layers_1_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                   }
-    layers_4_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                   }
-
-    layers_5_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                   }
+    layers_5_10 = {"entailement": [], "neutral": [], "contradiction": []}
 
     IDS = {"entailement": [], "neutral": [], "contradiction": []}
     count = {"entailement": 0, "neutral": 0, "contradiction": 0}
@@ -111,36 +100,28 @@ if __name__ == "__main__":
             attention_tensor = torch.mul(attention_tensor, pad_mask)
 
             # all the layers
-            a_hat = attention_tensor[:, :, :, :, :]
+            a_hat = attention_tensor[:, :, :, 0, :]
             a_hat = a_hat.sum(dim=2)
-            a_hat = a_hat.sum(dim=1)
             a_hat = a_hat.sum(dim=1)
             a_hat_all = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
-            ent_all = (-a_hat_all * torch.log(a_hat_all + 1e-16)).sum(dim=-1)
 
             # layer 1 to 10
-            a_hat = attention_tensor[:, 0:10, :, :, :].clone()  # select only some layers
+            a_hat = attention_tensor[:, 0:10, :, 0, :].clone()  # select only some layers
             a_hat = a_hat.sum(dim=2)
-            a_hat = a_hat.sum(dim=1)
             a_hat = a_hat.sum(dim=1)
             a_hat_1_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
-            ent_1_10 = (-a_hat_1_10 * torch.log(a_hat_1_10 + 1e-16)).sum(dim=-1)
 
             # layer 4 to 10
-            a_hat = attention_tensor[:, 3:10, :, :, :].clone()  # select only some layers
+            a_hat = attention_tensor[:, 3:10, :, 0, :].clone()  # select only some layers
             a_hat = a_hat.sum(dim=2)
             a_hat = a_hat.sum(dim=1)
-            a_hat = a_hat.sum(dim=1)
             a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
-            ent_4_10 = (-a_hat_4_10 * torch.log(a_hat_4_10 + 1e-16)).sum(dim=-1)
 
             # layer 5 to 10
-            a_hat = attention_tensor[:, 4:10, :, :, :].clone()  # select only some layers
-            a_hat = a_hat.sum(dim=2)  # mean head agregation
-            a_hat = a_hat.sum(dim=1)  # mean over the layers
-            a_hat = a_hat.sum(dim=1)  # line agregation
+            a_hat = attention_tensor[:, 4:10, :, 0, :].clone()  # select only some layers
+            a_hat = a_hat.sum(dim=2)
+            a_hat = a_hat.sum(dim=1)
             a_hat_5_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
-            ent_5_10 = (-a_hat_5_10 * torch.log(a_hat_5_10 + 1e-16)).sum(dim=-1)
 
             for b in range(args.batch_size):
                 lb = LABELS[int(labels[b].item())]
@@ -154,15 +135,9 @@ if __name__ == "__main__":
                 layers_4_10[lb].append(a_hat_4_10[b, :].cpu())
                 layers_5_10[lb].append(a_hat_5_10[b, :].cpu())
 
-                # add the entropy
-                all_layers["entropy"][lb][0] += ent_all[b].item()
-                layers_1_10["entropy"][lb][0] += ent_1_10[b].item()
-                layers_4_10["entropy"][lb][0] += ent_4_10[b].item()
-                layers_5_10["entropy"][lb][0] += ent_5_10[b].item()
-
             it += 1
 
-    # concat the different tensors to proceed a macro approach
+    # concat the different tensors to proceed a micro approach
     pbar = tqdm(LABELS, total=len(LABELS))
     for k in pbar:
         pbar.set_description(f"now lets get a good format")
@@ -174,19 +149,15 @@ if __name__ == "__main__":
 
         all_layers[k] = torch.concat(all_layers[k], dim=0).cpu().numpy()
         all_layers[k] = np.delete(all_layers[k], idx)
-        all_layers["entropy"][k][0] /= count[k]
 
         layers_5_10[k] = torch.concat(layers_5_10[k], dim=0).cpu().numpy()
         layers_5_10[k] = np.delete(layers_5_10[k], idx)
-        layers_5_10["entropy"][k][0] /= count[k]
 
         layers_4_10[k] = torch.concat(layers_4_10[k], dim=0).cpu().numpy()
         layers_4_10[k] = np.delete(layers_4_10[k], idx)
-        layers_4_10["entropy"][k][0] /= count[k]
 
         layers_1_10[k] = torch.concat(layers_1_10[k], dim=0).cpu().numpy()
         layers_1_10[k] = np.delete(layers_1_10[k], idx)
-        layers_1_10["entropy"][k][0] /= count[k]
 
     # proceed some statistics
     log.info("some statistics")
@@ -200,7 +171,7 @@ if __name__ == "__main__":
         log.debug(f">> {k} >> {a} ")
 
     # now save the files
-    dir = os.path.join(cache, "plots", f"entropy_study")
+    dir = os.path.join(cache, "plots", f"cls_study")
 
     with open(os.path.join(dir, "a_true_sum.pickle"), "wb") as f:
         pickle.dump(a_true, f)
