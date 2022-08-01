@@ -20,7 +20,7 @@ from training_bert import BertNliLight
 
 if __name__ == "__main__":
     init_logging()
-    log.info("start entropy_study_layers_study : SUM OVER LAYERS AND HEADS")
+    log.info("start cls study : attention on the sep cls token")
     cache = path.join(os.getcwd(), '.cache')
     log.info(f"current directory {os.getcwd()}")
 
@@ -53,21 +53,21 @@ if __name__ == "__main__":
 
     # attention on the special tokens
     # look at the attention on the different tokens on the different heads
-    attention = {"entailement": {tok: np.zerso((12, 12, 3368)) for tok in ["cls", "sep_1", "sep_2"]},
-                 "neutral": {tok: np.zerso((12, 12, 3219)) for tok in ["cls", "sep_1", "sep_2"]},
-                 "contradiction": {tok: np.zerso((12, 12, 3237)) for tok in ["cls", "sep_1", "sep_2"]}
+    attention = {"entailement": {tok: np.zeros((12, 12, 3368)) for tok in ["cls", "sep_1", "sep_2"]},
+                 "neutral": {tok: np.zeros((12, 12, 3219)) for tok in ["cls", "sep_1", "sep_2"]},
+                 "contradiction": {tok: np.zeros((12, 12, 3237)) for tok in ["cls", "sep_1", "sep_2"]}
                  }
     count = {"entailement": 0, "neutral": 0, "contradiction": 0}
+    it = {"entailement": 0, "neutral": 0, "contradiction": 0}
 
     LABELS = ["entailement", "neutral", "contradiction"]
     INF = 1e30
 
     test_loader = dm.test_dataloader()
     spe_tok = torch.tensor([0, 101, 102]).to(DEVICE)
-    it = 0
     with torch.no_grad():
-        pbar = tqdm(enumerate(test_loader), total=len(dm.test_set) / args.batch_size)
-        for id_batch, batch in pbar:
+        pbar = tqdm(test_loader, total=len(dm.test_set) / args.batch_size)
+        for batch in pbar:
             pbar.set_description("get the attention on the special tokens")
             # loop for the inference on this dict
             ids = batch["input_ids"].to(DEVICE)
@@ -83,13 +83,14 @@ if __name__ == "__main__":
             target = torch.tensor(special_tokens).to(DEVICE)
             spe_tok_mask = torch.isin(ids, target).type(torch.uint8)
 
+            # get the positions of the specials tokens
             buff = spe_tok_mask.cumsum(dim=-1)
             cls_position = torch.mul((buff == 1).type(torch.uint8), spe_tok_mask)
-            cls_position.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)
+            cls_position = cls_position[:, None, None, :].repeat(1, 12, 12, 1)
             sep_position_1 = torch.mul((buff == 2).type(torch.uint8), spe_tok_mask)
-            sep_position_1.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)
+            sep_position_1 = sep_position_1[:, None, None, :].repeat(1, 12, 12, 1)
             sep_position_2 = torch.mul((buff == 3).type(torch.uint8), spe_tok_mask)
-            sep_position_2.unsqueeze(1).unsqueeze(1).repeat(1, 12, 12, 1)
+            sep_position_2 = sep_position_2[:, None, None, :].repeat(1, 12, 12, 1)
 
             # process the attention_tensor
             attention_tensor = torch.stack(output.attentions, dim=1)  # shape [b, l, h, T, T]
@@ -104,14 +105,18 @@ if __name__ == "__main__":
             a_hat_sep_1 = torch.mul(a_hat, sep_position_1).sum(dim=-1)
             a_hat_sep_2 = torch.mul(a_hat, sep_position_2).sum(dim=-1)
 
-            for b in args.batch_size:
+            for b in range(args.batch_size):
                 lb = LABELS[labels[b]]
                 count[lb] += 1
-
-                attention[lb]["cls"][:, :, it] += a_hat_cls.sum(dim=0).cpu().numpy()
-                attention[lb]["sep_1"][:, :, it] += a_hat_sep_1.sum(dim=0).cpu().numpy()
-                attention[lb]["sep_2"][:, :, it] += a_hat_sep_2.sum(dim=0).cpu().numpy()
-                it += 1
-
+                pos = it[lb]
+                # sum over the batch
+                attention[lb]["cls"][:, :, pos] += a_hat_cls[b, :, :].cpu().numpy()
+                attention[lb]["sep_1"][:, :, pos] += a_hat_sep_1[b, :, :].cpu().numpy()
+                attention[lb]["sep_2"][:, :, pos] += a_hat_sep_2[b, :, :].cpu().numpy()
+                it[lb] += 1
 
     log.info("save the different dictionnaries")
+    dir = os.path.join(cache, "plots", f"cls_study")
+
+    with open(os.path.join(dir, "attention_sep_cls.pickle"), "wb") as f:
+        pickle.dump(attention, f)
