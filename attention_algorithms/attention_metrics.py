@@ -14,7 +14,9 @@ from transformers import BertTokenizer
 tk = BertTokenizer.from_pretrained('bert-base-uncased')
 
 SPECIAL_TOKENS = ["[CLS]", "[SEP]", "[PAD]"]
-#SPECIAL_TOKENS += tk.convert_ids_to_tokens()  # add the punctuation to the special tokens
+
+
+# SPECIAL_TOKENS += tk.convert_ids_to_tokens()  # add the punctuation to the special tokens
 
 
 ###############################
@@ -76,6 +78,32 @@ def softmax_normalization(tokens, attention: torch.tensor):
 ###############################
 ### default plot functions ###
 ###############################
+
+def plot_color_from_ax(map, ax,
+                       xlabel, ylabel, title,
+                       xstick=None,
+                       ystick=None,
+                       show_values=True):
+    ax.set_title(title)
+    ax.imshow(map, aspect='auto', cmap='Purples')
+    ax.set_xticks(range(map.shape[1]))
+    ax.set_xlabel(xlabel)
+
+    if xstick is None:
+        x_label_list = [str(i) for i in range(map.shape[1])]
+        ax.set_xticklabels(x_label_list)
+    else:
+        ax.set_xticklabels(xstick)
+
+    # the y-axis
+    ax.set_ylabel(ylabel)
+    ax.set_yticks(range(map.shape[0]))
+    if ystick is None:
+        y_label_list = [str(i) for i in range(map.shape[0])]
+        ax.set_xticklabels(y_label_list)
+    else:
+        ax.set_yticklabels(ystick)
+
 
 def default_plot_colormap(map,
                           xlabel, ylabel, title,
