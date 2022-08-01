@@ -223,6 +223,8 @@ class BertNliRegu(pl.LightningModule):
     def test_step_end(self, output):
         test_acc = self.acc["TEST"](output['preds'], output['target'])
         test_auc = self.auc["TEST"](output["auc"][0], output["auc"][1])
+        self.log("hp_/reg", output["reg_term"], on_step=False, on_epoch=True, logger=True)
+        self.log("hp_/loss", output["loss"], on_step=False, on_epoch=True, logger=True)
         self.log("hp_/acc", test_acc, on_step=False, on_epoch=True, logger=True)
         self.log("hp_/auc", test_auc, on_step=False, on_epoch=True, logger=True)
 
