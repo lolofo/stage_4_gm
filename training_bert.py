@@ -18,6 +18,8 @@ from transformers import BertTokenizer
 
 import os
 from os import path
+from logger import log
+import json
 
 from pytorch_lightning import callbacks as cb
 
@@ -254,7 +256,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-e', '--epoch', type=int, default=1)
     parser.add_argument('-b', '--batch_size', type=int, default=4)
-    parser.add_argument('-b', '--dataset', type=str, default="standard")
+    parser.add_argument('--dataset', type=str, default="standard")
 
     # what model we should use the default is 1 >> the one created in this file
     parser.add_argument('-t', '--model_type', type=int, default=1)
