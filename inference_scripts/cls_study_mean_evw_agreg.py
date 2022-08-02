@@ -20,7 +20,7 @@ from training_bert import BertNliLight
 
 if __name__ == "__main__":
     init_logging()
-    log.info("start cls study : SUM EVW")
+    log.info("start cls study : MEAN EVW")
     cache = path.join(os.getcwd(), '.cache')
     log.info(f"current directory {os.getcwd()}")
 
@@ -101,26 +101,26 @@ if __name__ == "__main__":
 
             # all the layers
             a_hat = attention_tensor[:, :, :, 0, :]
-            a_hat = a_hat.sum(dim=2)
-            a_hat = a_hat.sum(dim=1)
+            a_hat = a_hat.sum(dim=2)/12
+            a_hat = a_hat.sum(dim=1)/12
             a_hat_all = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
 
             # layer 1 to 10
             a_hat = attention_tensor[:, 0:10, :, 0, :].clone()  # select only some layers
-            a_hat = a_hat.sum(dim=2)
-            a_hat = a_hat.sum(dim=1)
+            a_hat = a_hat.sum(dim=2)/12
+            a_hat = a_hat.sum(dim=1)/10
             a_hat_1_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
 
             # layer 4 to 10
             a_hat = attention_tensor[:, 3:10, :, 0, :].clone()  # select only some layers
-            a_hat = a_hat.sum(dim=2)
-            a_hat = a_hat.sum(dim=1)
+            a_hat = a_hat.sum(dim=2)/12
+            a_hat = a_hat.sum(dim=1)/7
             a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
 
             # layer 5 to 10
             a_hat = attention_tensor[:, 4:10, :, 0, :].clone()  # select only some layers
-            a_hat = a_hat.sum(dim=2)
-            a_hat = a_hat.sum(dim=1)
+            a_hat = a_hat.sum(dim=2)/12
+            a_hat = a_hat.sum(dim=1)/6
             a_hat_5_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
 
             for b in range(args.batch_size):
@@ -173,17 +173,17 @@ if __name__ == "__main__":
     # now save the files
     dir = os.path.join(cache, "plots", f"cls_study")
 
-    with open(os.path.join(dir, "a_true_sum.pickle"), "wb") as f:
+    with open(os.path.join(dir, "a_true_mean.pickle"), "wb") as f:
         pickle.dump(a_true, f)
 
-    with open(os.path.join(dir, "all_layers_sum.pickle"), "wb") as f:
+    with open(os.path.join(dir, "all_layers_mean.pickle"), "wb") as f:
         pickle.dump(all_layers, f)
 
-    with open(os.path.join(dir, "layers_1_10_sum.pickle"), "wb") as f:
+    with open(os.path.join(dir, "layers_1_10_mean.pickle"), "wb") as f:
         pickle.dump(layers_1_10, f)
 
-    with open(os.path.join(dir, "layers_4_10_sum.pickle"), "wb") as f:
+    with open(os.path.join(dir, "layers_4_10_mean.pickle"), "wb") as f:
         pickle.dump(layers_4_10, f)
 
-    with open(os.path.join(dir, "layers_5_10_sum.pickle"), "wb") as f:
+    with open(os.path.join(dir, "layers_5_10_mean.pickle"), "wb") as f:
         pickle.dump(layers_5_10, f)

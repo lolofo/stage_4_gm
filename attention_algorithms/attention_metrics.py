@@ -86,9 +86,10 @@ def plot_color_from_ax(map, ax,
                        show_values=True):
     ax.set_title(title)
     ax.imshow(map, aspect='auto', cmap='Purples')
+
+    # the x-axis
     ax.set_xticks(range(map.shape[1]))
     ax.set_xlabel(xlabel)
-
     if xstick is None:
         x_label_list = [str(i) for i in range(map.shape[1])]
         ax.set_xticklabels(x_label_list)
@@ -99,11 +100,10 @@ def plot_color_from_ax(map, ax,
     ax.set_ylabel(ylabel)
     ax.set_yticks(range(map.shape[0]))
     if ystick is None:
-        y_label_list = [str(i) for i in range(map.shape[0])]
-        ax.set_xticklabels(y_label_list)
+        y_label_list = [str(i+1) for i in range(map.shape[0])]
+        ax.set_yticklabels(y_label_list)
     else:
         ax.set_yticklabels(ystick)
-
 
 def default_plot_colormap(map,
                           xlabel, ylabel, title,
