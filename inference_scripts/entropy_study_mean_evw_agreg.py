@@ -51,23 +51,24 @@ if __name__ == "__main__":
 
     dm.setup(stage="test")
 
-    a_true = {"entailement": [], "neutral": [], "contradiction": []
-              }
+    a_true = {"entailement": [], "neutral": [], "contradiction": []}
 
-    all_layers = {"entailement": [], "neutral": [], "contradiction": [],
-                  "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                  }
-
-    layers_1_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                   }
-    layers_4_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                   }
-
-    layers_5_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
-                   }
+    all_layers = {
+        "entailement": [], "neutral": [], "contradiction": [],
+        "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+    }
+    layers_1_10 = {
+        "entailement": [], "neutral": [], "contradiction": [],
+        "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+    }
+    layers_4_10 = {
+        "entailement": [], "neutral": [], "contradiction": [],
+        "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+    }
+    layers_5_10 = {
+        "entailement": [], "neutral": [], "contradiction": [],
+        "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+    }
 
     IDS = {"entailement": [], "neutral": [], "contradiction": []}
     count = {"entailement": 0, "neutral": 0, "contradiction": 0}
