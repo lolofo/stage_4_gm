@@ -120,7 +120,7 @@ class BertNliRegu(pl.LightningModule):
         attention_tensor = torch.mul(attention_tensor, pad_mask)
 
         # the entropia calculus
-        a_hat = attention_tensor[:, :, :, :, :]
+        a_hat = attention_tensor[:, 3:10, :, :, :]  # select layers from 4 to 10
         a_hat = a_hat.sum(dim=2) / 12  # mean head agregation
         a_hat = a_hat.sum(dim=1)  # sum over the lines
         a_hat = a_hat.sum(dim=1)  # line agregation
@@ -190,7 +190,8 @@ class BertNliRegu(pl.LightningModule):
     ### the training ###
     ####################
     def on_train_start(self):
-        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc': 0}
+        # init the values for the matrix board
+        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc': 0, 'hp_/reg': 0, 'hp_/loss': 0}
         self.logger.log_hyperparams(self.hparams, init_hp_metrics)
 
     def training_step(self, train_batch, batch_idx):
