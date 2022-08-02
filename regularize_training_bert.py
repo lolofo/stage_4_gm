@@ -122,7 +122,7 @@ class BertNliRegu(pl.LightningModule):
         # the entropia calculus
         a_hat = attention_tensor[:, 3:10, :, :, :]  # select layers from 4 to 10
         a_hat = a_hat.sum(dim=2) / 12  # mean head agregation
-        a_hat = a_hat.sum(dim=1)  # sum over the lines
+        a_hat = a_hat.sum(dim=1)  # sum over the layers
         a_hat = a_hat.sum(dim=1)  # line agregation
         a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
         ent_4_10 = (-a_hat_4_10 * torch.log(a_hat_4_10 + EPS)).sum(dim=-1)
@@ -280,7 +280,6 @@ class SNLIDataModule(pl.LightningDataModule):
 
         # called on every GPU
         # load dataset from cache in each instance of GPU
-        # TODO create the e-snli dataset
         if stage == 'fit' or stage is None:
             buff = None
             if self.nb_data > 0:
@@ -374,9 +373,9 @@ if __name__ == '__main__':
     parser.add_argument('-mn', '--model_name')
 
     # config to distinguish experimentations
-    parser.add_argument('--exp', action='store_true')  # mode experiment: avoid printing progress bars
+    parser.add_argument('--exp', action='store_true')
 
-    # save in [args.log_dir]/[experiments]/[version]
+    # save in [args.log_dir]/[args.experiments]/[args.version] allow good tensorboard
     parser.add_argument('--experiment', type=str, default='test')
     parser.add_argument('--version', type=str, default='0.0')
 
