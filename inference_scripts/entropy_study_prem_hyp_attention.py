@@ -110,15 +110,36 @@ if __name__ == "__main__":
             a_hat = a_hat.sum(dim=2)  # sum over the lines.
             a_hat = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
 
+            # the pure weights
             a_hat_prem = torch.mul(a_hat, prem_position).sum(dim=-1)
             a_hat_hyp = torch.mul(a_hat, hyp_position).sum(dim=-1)
+
+            # for the entropia
+            a_hat = attention_tensor[:, :, :, :, :].sum(dim=2) / 12  # mean over the heads
+            a_hat = a_hat.sum(dim=2)  # sum over the lines.
+            a_hat_prem_ent = torch.softmax(a_hat - INF * torch.logical_or(spe_tok_mask, hyp_position).type(torch.uint8),
+                                           dim=-1)
+            ent_prem = (-a_hat_prem_ent * torch.log(a_hat_prem_ent + 1e-16)).sum(dim=-1)
+            a_hat_hyp_ent = torch.softmax(a_hat - INF * torch.logical_or(spe_tok_mask, prem_position).type(torch.uint8),
+                                          dim=-1)
+            ent_hyp = (-a_hat_hyp_ent * torch.log(a_hat_hyp_ent + 1e-16)).sum(dim=-1)
+            # number of tokens for the normalization
+            nb_tok_prem = torch.logical_and(mk.unsqueeze(1).repeat(1, 12, 1), prem_position).type(torch.float) \
+                              .sum(dim=-1) - 1
+            nb_tok_hyp = torch.logical_and(mk.unsqueeze(1).repeat(1, 12, 1), hyp_position).type(torch.float) \
+                             .sum(dim=-1) - 1
 
             for b in range(args.batch_size):
                 lb = LABELS[labels[b]]
                 count[lb] += 1
                 pos = it[lb]
+
                 attention[lb][:, 0, pos] += a_hat_prem[b, :].cpu().numpy()
                 attention[lb][:, 1, pos] += a_hat_hyp[b, :].cpu().numpy()
+
+                entropy[lb][:, 0, pos] += (ent_prem[b, :] / torch.log(nb_tok_prem[b, :])).cpu().numpy()
+                entropy[lb][:, 1, pos] += (ent_hyp[b, :] / torch.log(nb_tok_hyp[b, :])).cpu().numpy()
+
                 it[lb] += 1
 
     log.info("save the different dictionnaries")
@@ -126,3 +147,5 @@ if __name__ == "__main__":
 
     with open(os.path.join(dir, "attention_prem_hyp.pickle"), "wb") as f:
         pickle.dump(attention, f)
+    with open(os.path.join(dir, "entropy_prem_hyp.pickle"), "wb") as f:
+        pickle.dump(entropy, f)
