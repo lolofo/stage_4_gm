@@ -1,3 +1,6 @@
+# distribution of the attention over the different lines
+
+
 from os import path
 import os
 import sys
@@ -20,7 +23,7 @@ from training_bert import BertNliLight
 
 if __name__ == "__main__":
     init_logging()
-    log.info("start cls study : attention on the prem and hyp")
+    log.info("start entropy study : attention on the prem and the hyp")
     cache = path.join(os.getcwd(), '.cache')
     log.info(f"current directory {os.getcwd()}")
 
@@ -103,8 +106,8 @@ if __name__ == "__main__":
             attention_tensor = torch.mul(attention_tensor, pad_mask)
 
             # construction of the weights
-            a_hat = attention_tensor.sum(dim=2) # sum over the heads
-            a_hat = a_hat[:, :, 0, :]
+            a_hat = attention_tensor[:, :, :, :, :].sum(dim=2) / 12  # mean over the heads
+            a_hat = a_hat.sum(dim=2)  # sum over the lines.
             a_hat = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
 
             a_hat_prem = torch.mul(a_hat, prem_position).sum(dim=-1)
@@ -119,7 +122,7 @@ if __name__ == "__main__":
                 it[lb] += 1
 
     log.info("save the different dictionnaries")
-    dir = os.path.join(cache, "plots", f"cls_study")
+    dir = os.path.join(cache, "plots", f"entropy_study")
 
     with open(os.path.join(dir, "attention_prem_hyp.pickle"), "wb") as f:
         pickle.dump(attention, f)
