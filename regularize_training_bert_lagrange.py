@@ -342,11 +342,9 @@ class SNLIDataModule(pl.LightningDataModule):
         spe_tok_mask = torch.isin(input_ids, spe_ids)
 
         # renormalize the annotation
-        alpha_n = annotation.type(torch.float) / annotation.sum(dim=-1).unsqueeze(-1).repeat(1, 150)
-        h_annot = (- alpha_n * torch.log(alpha_n + EPS)).sum(dim=-1)
-        nb_tokens = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
-        log_t = torch.log(nb_tokens)
-        h_annot = h_annot / log_t
+        a_s = annotation.sum(dim=-1).type(torch.float)
+        t_s = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
+        h_annot = torch.log(a_s) / torch.log(t_s)
 
         return {
             "input_ids": input_ids,
