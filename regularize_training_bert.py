@@ -61,8 +61,9 @@ class BertNliRegu(pl.LightningModule):
 
         # bert layer
         # the bert layer will return the layer will return the attention weights
-        self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True
-                                              # return the attention weights
+        self.bert = BertModel.from_pretrained('bert-base-uncased',
+                                              output_attentions=True,  # return the attention
+                                              output_hidden_states=True  # return the hidden states of the models
                                               )
 
         # classifier head
@@ -126,10 +127,12 @@ class BertNliRegu(pl.LightningModule):
         a_hat = a_hat.sum(dim=1)  # line agregation
         a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
         ent_4_10 = (-a_hat_4_10 * torch.log(a_hat_4_10 + EPS)).sum(dim=-1)
-        pen = ent_4_10.mean(dim=0)
+        nb_tokens = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
+        log_t = torch.log(nb_tokens)
+        h = (ent_4_10 / log_t).mean(dim=0)
 
         # return the penalisation score and the model annotations
-        return {"pen": pen, "scores": a_hat_4_10}
+        return {"pen": h, "scores": a_hat_4_10}
 
     #######################
     ### steps functions ###
