@@ -17,6 +17,7 @@ import pickle
 from torch_set_up import DEVICE
 from regularize_training_bert import SNLIDataModule
 from regularize_training_bert import BertNliRegu
+from regularize_training_bert_ent_modify import BertNliRegu as BertNliReguModif
 
 if __name__ == "__main__":
     init_logging()
@@ -33,15 +34,25 @@ if __name__ == "__main__":
     parser.add_argument('-n', '--nb_data', type=int, default=-1)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--accelerator', type=str, default='auto')
+    parser.add_argument('--modif',  action='store_true')
 
     args = parser.parse_args()
 
     log.info(f"start entropy study reg_study : REG MUL = {args.reg_mul}")
+    log.info(f"modif : {args.modif}")
 
-    ckp = path.join(args.log_dir, "regu_study", "layer_4_10", f"mul={args.reg_mul}", "checkpoints", "best.ckpt")
-    model = BertNliRegu.load_from_checkpoint(ckp)
-    model.to(DEVICE)
-    model = model.eval()
+    if not args.modif:
+        ckp = path.join(args.log_dir, "regu_study", "layer_4_10", f"mul={args.reg_mul}", "checkpoints", "best.ckpt")
+        model = BertNliRegu.load_from_checkpoint(ckp)
+        model.to(DEVICE)
+        model = model.eval()
+    else:
+        ckp = path.join(args.log_dir, "regu_study", "layer_4_10", f"modif_mul={args.reg_mul}", "checkpoints", "best.ckpt")
+        model = BertNliReguModif.load_from_checkpoint(ckp)
+        model.to(DEVICE)
+        model = model.eval()
+
+
 
     dm = SNLIDataModule(
         cache=args.data_dir,
@@ -56,7 +67,8 @@ if __name__ == "__main__":
               }
 
     layers_4_10 = {"entailement": [], "neutral": [], "contradiction": [],
-                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
+                   "entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]},
+                   "modif_entropy": {"entailement": [0], "neutral": [0], "contradiction": [0]}
                    }
 
     IDS = {"entailement": [], "neutral": [], "contradiction": []}
@@ -108,6 +120,11 @@ if __name__ == "__main__":
             a_hat_4_10 = torch.softmax(a_hat - INF * spe_tok_mask, dim=-1)
             ent_4_10 = (-a_hat_4_10 * torch.log(a_hat_4_10 + 1e-16)).sum(dim=-1)
 
+            nb_tokens = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
+            log_t = torch.log(nb_tokens)
+            h = ent_4_10 / log_t
+            ent_modif = (0.25 - torch.mul(h, 1.0 - h))
+
             for b in range(args.batch_size):
                 lb = LABELS[int(labels[b].item())]
                 IDS[lb].append(ids[b, :].cpu())
@@ -118,7 +135,8 @@ if __name__ == "__main__":
                 layers_4_10[lb].append(a_hat_4_10[b, :].cpu())
 
                 # add the entropy
-                layers_4_10["entropy"][lb][0] += ent_4_10[b].item()
+                layers_4_10["entropy"][lb][0] += h[b].item()
+                layers_4_10["modif_entropy"][lb][0] += ent_modif[b].item()
 
             it += 1
 
@@ -135,6 +153,7 @@ if __name__ == "__main__":
         layers_4_10[k] = torch.concat(layers_4_10[k], dim=0).cpu().numpy()
         layers_4_10[k] = np.delete(layers_4_10[k], idx)
         layers_4_10["entropy"][k][0] /= count[k]
+        layers_4_10["modif_entropy"][k][0] /= count[k]
 
     # proceed some statistics
     log.info("some statistics")
@@ -146,9 +165,14 @@ if __name__ == "__main__":
 
     # prepare the environment
     dir = os.path.join(cache, "plots", f"regu_study", "layer_4_10")
-    if not os.path.exists(os.path.join(dir, f"mul={args.reg_mul}")):
-        os.mkdir(os.path.join(dir, f"mul={args.reg_mul}"))
-    dir = os.path.join(dir, f"mul={args.reg_mul}")
+    if args.modif :
+        if not os.path.exists(os.path.join(dir, f"modif_mul={args.reg_mul}")):
+            os.mkdir(os.path.join(dir, f"modif_mul={args.reg_mul}"))
+        dir = os.path.join(dir, f"modif_mul={args.reg_mul}")
+    else :
+        if not os.path.exists(os.path.join(dir, f"mul={args.reg_mul}")):
+            os.mkdir(os.path.join(dir, f"mul={args.reg_mul}"))
+        dir = os.path.join(dir, f"mul={args.reg_mul}")
 
     with open(os.path.join(dir, "a_true_head_mean.pickle"), "wb") as f:
         pickle.dump(a_true, f)
