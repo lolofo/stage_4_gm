@@ -19,7 +19,7 @@ from torch import nn
 from pytorch_lightning.loggers import TensorBoardLogger
 from torchmetrics import Accuracy
 from torchmetrics import AUROC
-from torchmetrics import MetricCollection
+from torchmetrics import AveragePrecision
 
 from transformers import BertModel
 from transformers import BertTokenizer
@@ -83,9 +83,15 @@ class BertNliRegu(pl.LightningModule):
         })
 
         self.auc = nn.ModuleDict({
-            'TRAIN': AUROC(pos_label=1),
-            'VAL': AUROC(pos_label=1),
-            'TEST': AUROC(pos_label=1)
+            'TRAIN': AUROC(pos_label=1, average="micro"),
+            'VAL': AUROC(pos_label=1, average="micro"),
+            'TEST': AUROC(pos_label=1, average="micro")
+        })
+
+        self.auprc = nn.ModuleDict({
+            'TRAIN': AveragePrecision(pos_label=1, average="micro"),
+            'VAL': AveragePrecision(pos_label=1, average="micro"),
+            'TEST': AveragePrecision(pos_label=1, average="micro")
         })
 
     def forward(self, input_ids, attention_mask, *args, **kwargs):
@@ -173,6 +179,7 @@ class BertNliRegu(pl.LightningModule):
     def step_end(self, output, stage: str):
         step_acc = self.acc[stage](output['preds'], output['target'])
         step_auc = self.auc[stage](output['auc'][0], output['auc'][1])
+        step_auprc = self.auprc[stage](output['auc'][0], output['auc'][1])
         if stage == "VAL":
             # for the EarlyStopping
             epoch_bool = True
@@ -182,6 +189,7 @@ class BertNliRegu(pl.LightningModule):
         self.log(f"{stage}_/acc", step_acc, on_step=True, on_epoch=epoch_bool, logger=True, prog_bar=True)
         self.log(f"{stage}_/reg", output["reg_term"], on_step=True, on_epoch=epoch_bool, logger=True, prog_bar=True)
         self.log(f"{stage}_/auc", step_auc, on_step=True, on_epoch=epoch_bool, logger=True)
+        self.log(f"{stage}_/auprc", step_auprc, on_step=True, on_epoch=epoch_bool, logger=True)
 
     def end_epoch(self, stage):
         d = dict()
