@@ -19,7 +19,7 @@ from torch import nn
 from pytorch_lightning.loggers import TensorBoardLogger
 from torchmetrics import Accuracy
 from torchmetrics import AUROC
-from torchmetrics import MetricCollection
+from torchmetrics import AveragePrecision
 
 from transformers import BertModel
 from transformers import BertTokenizer
@@ -57,6 +57,7 @@ class BertNliRegu(pl.LightningModule):
                  pen_type: str = "lasso",
                  lr=5e-5,
                  exp: bool = False):
+
         super().__init__()
         self.exp = exp
         self.save_hyperparameters("reg_mul", ignore=["exp"])
@@ -88,9 +89,15 @@ class BertNliRegu(pl.LightningModule):
         })
 
         self.auc = nn.ModuleDict({
-            'TRAIN': AUROC(pos_label=1),
-            'VAL': AUROC(pos_label=1),
-            'TEST': AUROC(pos_label=1)
+            'TRAIN': AUROC(pos_label=1, average="micro"),
+            'VAL': AUROC(pos_label=1, average="micro"),
+            'TEST': AUROC(pos_label=1, average="micro")
+        })
+
+        self.auprc = nn.ModuleDict({
+            'TRAIN': AveragePrecision(pos_label=1, average="micro"),
+            'VAL': AveragePrecision(pos_label=1, average="micro"),
+            'TEST': AveragePrecision(pos_label=1, average="micro")
         })
 
     def forward(self, input_ids, attention_mask, *args, **kwargs):
@@ -136,9 +143,9 @@ class BertNliRegu(pl.LightningModule):
         h = ent_4_10 / log_t
 
         if pen_type == "lasso":
-            pen = torch.abs(h - h_annot).mean(dim=0)
+            pen = (torch.abs(h - h_annot)).mean(dim=0)
         else:
-            pen = torch.square(h - h_annot).mean(dim=0)
+            pen =(torch.square(h - h_annot)).mean(dim=0)
 
         # return the penalisation score and the model annotations
         return {"pen": pen, "scores": a_hat_4_10}
@@ -179,6 +186,7 @@ class BertNliRegu(pl.LightningModule):
     def step_end(self, output, stage: str):
         step_acc = self.acc[stage](output['preds'], output['target'])
         step_auc = self.auc[stage](output['auc'][0], output['auc'][1])
+        step_auprc = self.auprc[stage](output['auc'][0], output['auc'][1])
         if stage == "VAL":
             # for the EarlyStopping
             epoch_bool = True
@@ -188,6 +196,7 @@ class BertNliRegu(pl.LightningModule):
         self.log(f"{stage}_/acc", step_acc, on_step=True, on_epoch=epoch_bool, logger=True, prog_bar=True)
         self.log(f"{stage}_/reg", output["reg_term"], on_step=True, on_epoch=epoch_bool, logger=True, prog_bar=True)
         self.log(f"{stage}_/auc", step_auc, on_step=True, on_epoch=epoch_bool, logger=True)
+        self.log(f"{stage}_/auprc", step_auprc, on_step=True, on_epoch=epoch_bool, logger=True)
 
     def end_epoch(self, stage):
         d = dict()
@@ -200,7 +209,7 @@ class BertNliRegu(pl.LightningModule):
     ####################
     def on_train_start(self):
         # init the values for the matrix board
-        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc': 0, 'hp_/reg': 0, 'hp_/loss': 0}
+        init_hp_metrics = {'hp_/acc': 0, 'hp_/auc': 0, 'hp_/reg': 0, 'hp_/loss': 0, 'hp_/auprc': 0}
         self.logger.log_hyperparams(self.hparams, init_hp_metrics)
 
     def training_step(self, train_batch, batch_idx):
@@ -233,10 +242,13 @@ class BertNliRegu(pl.LightningModule):
     def test_step_end(self, output):
         test_acc = self.acc["TEST"](output['preds'], output['target'])
         test_auc = self.auc["TEST"](output["auc"][0], output["auc"][1])
+        test_auprc = self.auprc["TEST"](output["auc"][0], output["auc"][1])
+
         self.log("hp_/reg", output["reg_term"], on_step=False, on_epoch=True, logger=True)
         self.log("hp_/loss", output["loss"], on_step=False, on_epoch=True, logger=True)
         self.log("hp_/acc", test_acc, on_step=False, on_epoch=True, logger=True)
         self.log("hp_/auc", test_auc, on_step=False, on_epoch=True, logger=True)
+        self.log("hp_/auprc", test_auprc, on_step=False, on_epoch=True, logger=True)
 
 
 ################
