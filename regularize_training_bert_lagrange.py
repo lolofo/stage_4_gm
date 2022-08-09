@@ -350,7 +350,7 @@ class SNLIDataModule(pl.LightningDataModule):
         labels = self.t_tensor(batch['label'])
 
         # don't put the punctuation into the annotation
-        punct_ids = torch.tensor(list(range(999, 1037)))
+        punct_ids = torch.tensor(list(range(999, 999+15)) + list(range(999+25, 1037)))
         punct_pos = torch.logical_not(torch.isin(input_ids, punct_ids)).type(torch.uint8)
         annotation = torch.mul(annotation, punct_pos)
 
@@ -361,19 +361,16 @@ class SNLIDataModule(pl.LightningDataModule):
         # renormalize the annotation
         a_s = annotation.sum(dim=-1).type(torch.float)
         t_s = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
+        a_s_mask = (a_s == 0).type(torch.float)
+        a_s = a_s + a_s_mask * torch.sqrt(t_s)
         h_annot = torch.log(a_s) / torch.log(t_s)
-
-        if (h_annot > 100).type(torch.uint8).sum() >= 1:
-            log.debug(f"batch : {batch}")
-            log.debug(f"a_s : {a_s}")
-            log.debug(f"t_s : {t_s}")
 
         return {
             "input_ids": input_ids,
             "attention_masks": attention_mask,
             "labels": labels,
             "annotations": annotation,
-            "H_annot": h_annot
+            "H_annot": h_annot,
         }
 
     # maybe not usefull here
