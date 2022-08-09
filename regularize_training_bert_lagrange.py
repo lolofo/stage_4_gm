@@ -171,6 +171,9 @@ class BertNliRegu(pl.LightningModule):
                                      pen_type=self.pen_type)
         loss += self.reg_mul * reg_term["pen"]
 
+        if reg_term["pen"] > 50:
+            log.debug(f"divergence of the reg_term")
+
         # the probabilities
         class_pred = torch.softmax(logits, dim=1)
 
@@ -358,6 +361,11 @@ class SNLIDataModule(pl.LightningDataModule):
         a_s = annotation.sum(dim=-1).type(torch.float)
         t_s = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
         h_annot = torch.log(a_s) / torch.log(t_s)
+
+        if h_annot > 100:
+            log.debug(f"batch : {batch}")
+            log.debug(f"a_s : {a_s}")
+            log.debug(f"t_s : {t_s}")
 
         return {
             "input_ids": input_ids,
