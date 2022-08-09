@@ -148,6 +148,9 @@ class BertNliRegu(pl.LightningModule):
             pen = (torch.square(h - h_annot)).mean(dim=0)
 
         # return the penalisation score and the model annotations
+        if pen >= 50:
+            log.debug(f"h (entropy calculated) : {h}")
+
         return {"pen": pen, "scores": a_hat_4_10}
 
     #######################
@@ -433,7 +436,7 @@ if __name__ == '__main__':
 
     # config for the regularization
     parser.add_argument('--reg_mul', type=float, default=0)  # the regularize terms
-    parser.add_argument('--pen_type', type=str, default="lasso")  # how to regularize
+    parser.add_argument('--pen_type', type=str, default="lasso")  # how to regularize lasso or mse
     parser.add_argument('--lrate', type=float, default=5e-5)  # the learning rate for the training part
 
     args = parser.parse_args()
