@@ -145,7 +145,7 @@ class BertNliRegu(pl.LightningModule):
         if pen_type == "lasso":
             pen = (torch.abs(h - h_annot)).mean(dim=0)
         else:
-            pen =(torch.square(h - h_annot)).mean(dim=0)
+            pen = (torch.square(h - h_annot)).mean(dim=0)
 
         # return the penalisation score and the model annotations
         return {"pen": pen, "scores": a_hat_4_10}
@@ -202,6 +202,7 @@ class BertNliRegu(pl.LightningModule):
         d = dict()
         d[f"{stage}_acc"] = round(self.acc[stage].compute().item(), 4)
         d[f"{stage}_auc"] = round(self.auc[stage].compute().item(), 4)
+        d[f"{stage}_auprc"] = round(self.auprc[stage].compute().item(), 4)
         log.info(f"Epoch : {self.current_epoch} >> {stage}_metrics >> {d}")
 
     ####################
