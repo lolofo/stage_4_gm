@@ -362,7 +362,7 @@ class SNLIDataModule(pl.LightningDataModule):
         a_s = annotation.sum(dim=-1).type(torch.float)
         t_s = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
         a_s_mask = (a_s == 0).type(torch.float)
-        a_s = a_s + a_s_mask * torch.sqrt(t_s)
+        a_s = a_s + a_s_mask * torch.sqrt(t_s) # put the entropy to 1/2 for these sentences
         h_annot = torch.log(a_s) / torch.log(t_s)
 
         return {
