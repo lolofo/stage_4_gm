@@ -147,11 +147,6 @@ class BertNliRegu(pl.LightningModule):
         else:
             pen = (torch.square(h - h_annot)).mean(dim=0)
 
-        # return the penalisation score and the model annotations
-        if pen >= 50:
-            log.debug(f"h (entropy calculated) : {h}")
-            log.debug(f"h_annot : {h_annot}")
-
         return {"pen": pen, "scores": a_hat_4_10}
 
     #######################
