@@ -100,6 +100,8 @@ if __name__ == "__main__":
             special_tokens = [0, 101, 102]
             target = torch.tensor(special_tokens).to(DEVICE)
             spe_tok_mask = torch.isin(ids, target).type(torch.uint8)
+            nb_tokens = torch.logical_not(spe_tok_mask).type(torch.float).sum(dim=-1)
+            log_t = torch.log(nb_tokens)
 
             # process the attention_tensor
             attention_tensor = torch.stack(output.attentions, dim=1)  # shape [b, l, h, T, T]
@@ -155,10 +157,10 @@ if __name__ == "__main__":
                 layers_5_10[lb].append(a_hat_5_10[b, :].cpu())
 
                 # add the entropy
-                all_layers["entropy"][lb][0] += ent_all[b].item()
-                layers_1_10["entropy"][lb][0] += ent_1_10[b].item()
-                layers_4_10["entropy"][lb][0] += ent_4_10[b].item()
-                layers_5_10["entropy"][lb][0] += ent_5_10[b].item()
+                all_layers["entropy"][lb][0] += ent_all[b].item() / (log_t[b].item())
+                layers_1_10["entropy"][lb][0] += ent_1_10[b].item() / (log_t[b].item())
+                layers_4_10["entropy"][lb][0] += ent_4_10[b].item() / (log_t[b].item())
+                layers_5_10["entropy"][lb][0] += ent_5_10[b].item() / (log_t[b].item())
 
             it += 1
 
