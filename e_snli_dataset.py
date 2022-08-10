@@ -16,7 +16,7 @@ TRAIN = ["1.csv", "2.csv"]
 DEV = ["dev.csv"]
 TEST = ["test.csv"]
 
-KEEP_COLS = ["premise", "hypothesis", "label", "hg_goal"]
+KEEP_COLS = ["highlight_premise", "highlight_hypothesis", "premise", "hypothesis", "label", "hg_goal"]
 MAX_PAD = 150
 
 LAB_ENC = {"entailment": 0,
