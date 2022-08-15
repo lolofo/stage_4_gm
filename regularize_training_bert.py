@@ -196,6 +196,7 @@ class BertNliRegu(pl.LightningModule):
         d = dict()
         d[f"{stage}_acc"] = round(self.acc[stage].compute().item(), 4)
         d[f"{stage}_auc"] = round(self.auc[stage].compute().item(), 4)
+        d[f"{stage}_auprc"] = round(self.auprc[stage].compute().item(), 4)
         log.info(f"Epoch : {self.current_epoch} >> {stage}_metrics >> {d}")
 
     ####################
